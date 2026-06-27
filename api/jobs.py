@@ -191,14 +191,16 @@ class JobManager:
         for log in pdir.rglob("cost_log.json"):
             try:
                 data = json.loads(log.read_text(encoding="utf-8"))
+                # Prefer the tracker's canonical running total (present even at $0).
+                if isinstance(data, dict) and "budget_spent_usd" in data:
+                    return round(float(data["budget_spent_usd"]), 4)
                 entries = data if isinstance(data, list) else data.get("entries", [])
                 total = sum(
                     float(e.get("actual_usd") or e.get("reserved_usd") or 0.0)
                     for e in entries
                     if isinstance(e, dict)
                 )
-                if total:
-                    return round(total, 4)
+                return round(total, 4)
             except Exception:
                 continue
         return None
