@@ -1,0 +1,10 @@
+# OpenMontage HTTP API (Coolify deployment) — extra deps on top of requirements.txt
+#
+# The API wraps the agent-driven pipeline behind an async job queue. The agent
+# runtime itself is the Claude Code CLI (installed in the Docker image via npm,
+# see Dockerfile.api), driven headlessly per job — there is no Python agent SDK
+# dependency here, so the API stays decoupled from SDK version drift.
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9   # form/file responses

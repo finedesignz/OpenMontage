@@ -1,0 +1,49 @@
+# OpenMontage HTTP API — Coolify deployment image.
+#
+# The container bundles everything a production run needs at runtime:
+#   - Python 3.11 + the OpenMontage tools
+#   - Node.js 20 + the Remotion composer (npm install)
+#   - FFmpeg (composition / encoding)
+#   - the Claude Code CLI (the headless agent that drives each job)
+#
+# It exposes the FastAPI app on $PORT (default 8080). Mount a persistent volume
+# at /app/jobs and /app/projects so job history and renders survive redeploys.
+
+FROM node:20-bookworm-slim
+
+# Python + ffmpeg + build basics
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-venv ffmpeg ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# The agent runtime: Claude Code CLI, driven headlessly per job.
+RUN npm install -g @anthropic-ai/claude-code
+
+WORKDIR /app
+
+# --- Python deps (layer-cached) ---
+COPY requirements.txt requirements-api.txt ./
+RUN python3 -m pip install --no-cache-dir --break-system-packages \
+        -r requirements.txt -r requirements-api.txt \
+    && python3 -m pip install --no-cache-dir --break-system-packages piper-tts || true
+
+# --- Remotion composer deps (layer-cached) ---
+COPY remotion-composer/package.json remotion-composer/package-lock.json* remotion-composer/
+RUN cd remotion-composer && npm install --no-audit --no-fund
+
+# --- App source ---
+COPY . .
+
+ENV PORT=8080 \
+    HOST=0.0.0.0 \
+    PYTHONUNBUFFERED=1 \
+    OPENMONTAGE_CLAUDE_BIN=claude
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://localhost:${PORT:-8080}/health || exit 1
+
+# Single worker: each job is an out-of-process agent, and the JobManager keeps
+# in-memory task state. Scale by running more job slots, not more web workers.
+CMD ["sh", "-c", "uvicorn api.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8080}"]

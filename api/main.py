@@ -1,0 +1,165 @@
+"""FastAPI application — the OpenMontage production API.
+
+Async job model (submit -> poll -> fetch), matching the agentsrecon job pattern
+so the MCP wrapper is a thin pass-through:
+
+    POST   /v1/jobs                 submit a production brief -> {job_id}
+    GET    /v1/jobs                 list jobs (filter by status)
+    GET    /v1/jobs/{id}            job status + progress + cost
+    GET    /v1/jobs/{id}/result     final video + artifact manifest
+    GET    /v1/jobs/{id}/artifacts/{name}  download a render/artifact
+    POST   /v1/jobs/{id}/cancel     cancel a running job
+    GET    /v1/pipelines            available pipelines
+    GET    /v1/capabilities         provider/capability menu (preflight)
+    GET    /health                  liveness + readiness
+    GET    /openapi.json , /docs    auto-generated (docs contract)
+"""
+
+from __future__ import annotations
+
+import asyncio
+from contextlib import asynccontextmanager
+
+import yaml
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+
+from .auth import require_api_key
+from .config import get_settings
+from .jobs import JobManager
+from .models import (
+    CreateJobRequest,
+    HealthResponse,
+    JobList,
+    JobRecord,
+    JobResult,
+    PipelineInfo,
+)
+
+API_VERSION = "0.1.0"
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.jobs = JobManager(settings)
+        yield
+
+    app = FastAPI(
+        title="OpenMontage API",
+        version=API_VERSION,
+        description="Agent-driven video production as an async job service.",
+        lifespan=lifespan,
+    )
+
+    # ---- health (no auth) --------------------------------------------------
+
+    @app.get("/health", response_model=HealthResponse, tags=["meta"])
+    async def health() -> HealthResponse:
+        jm: JobManager | None = getattr(app.state, "jobs", None)
+        return HealthResponse(
+            version=API_VERSION,
+            agent_runtime=settings.claude_bin,
+            active_jobs=jm.active_count if jm else 0,
+        )
+
+    @app.get("/", tags=["meta"])
+    async def root() -> dict:
+        return {"service": "openmontage", "version": API_VERSION, "docs": "/docs"}
+
+    # ---- jobs --------------------------------------------------------------
+
+    @app.post("/v1/jobs", response_model=JobRecord, status_code=202, tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def create_job(req: CreateJobRequest) -> JobRecord:
+        jm: JobManager = app.state.jobs
+        return jm.create(req.prompt, req.pipeline, req.budget_usd, req.metadata)
+
+    @app.get("/v1/jobs", response_model=JobList, tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def list_jobs(
+        status: str | None = Query(None, description="Filter: queued|running|completed|failed|cancelled"),
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+    ) -> JobList:
+        jm: JobManager = app.state.jobs
+        records, total = jm.list(status, limit, offset)
+        return JobList(jobs=records, total=total)
+
+    @app.get("/v1/jobs/{job_id}", response_model=JobRecord, tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def get_job(job_id: str) -> JobRecord:
+        jm: JobManager = app.state.jobs
+        rec = jm.get(job_id)
+        if not rec:
+            raise HTTPException(404, "job not found")
+        return rec
+
+    @app.get("/v1/jobs/{job_id}/result", response_model=JobResult, tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def get_result(job_id: str) -> JobResult:
+        jm: JobManager = app.state.jobs
+        res = jm.result(job_id)
+        if not res:
+            raise HTTPException(404, "job not found")
+        return res
+
+    @app.get("/v1/jobs/{job_id}/artifacts/{name}", tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def download_artifact(job_id: str, name: str) -> FileResponse:
+        jm: JobManager = app.state.jobs
+        res = jm.result(job_id)
+        if not res:
+            raise HTTPException(404, "job not found")
+        match = next((a for a in res.artifacts if a.name == name), None)
+        if not match:
+            raise HTTPException(404, "artifact not found")
+        abs_path = (settings.repo_root / match.path).resolve()
+        # Defence in depth: never serve outside the repo's projects tree.
+        if not str(abs_path).startswith(str(settings.projects_dir.resolve())):
+            raise HTTPException(403, "forbidden path")
+        if not abs_path.exists():
+            raise HTTPException(410, "artifact no longer on disk")
+        return FileResponse(str(abs_path), filename=name)
+
+    @app.post("/v1/jobs/{job_id}/cancel", response_model=JobRecord, tags=["jobs"], dependencies=[Depends(require_api_key)])
+    async def cancel_job(job_id: str) -> JobRecord:
+        jm: JobManager = app.state.jobs
+        rec = await jm.cancel(job_id)
+        if not rec:
+            raise HTTPException(404, "job not found")
+        return rec
+
+    # ---- discovery ---------------------------------------------------------
+
+    @app.get("/v1/pipelines", response_model=list[PipelineInfo], tags=["discovery"], dependencies=[Depends(require_api_key)])
+    async def list_pipelines() -> list[PipelineInfo]:
+        out: list[PipelineInfo] = []
+        for f in sorted((settings.repo_root / "pipeline_defs").glob("*.yaml")):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            out.append(
+                PipelineInfo(
+                    name=data.get("name") or f.stem,
+                    best_for=data.get("best_for") or data.get("description"),
+                    stability=data.get("stability") or data.get("status"),
+                )
+            )
+        return out
+
+    @app.get("/v1/capabilities", tags=["discovery"], dependencies=[Depends(require_api_key)])
+    async def capabilities() -> dict:
+        def _probe() -> dict:
+            from tools.tool_registry import registry
+
+            registry.discover()
+            return registry.provider_menu_summary()
+
+        try:
+            return await asyncio.to_thread(_probe)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(503, f"capability probe failed: {exc}")
+
+    return app
+
+
+app = create_app()
