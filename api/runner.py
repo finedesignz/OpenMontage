@@ -127,12 +127,27 @@ class AgentRun:
                     pass
 
     async def _pump_stdout(self) -> None:
+        # Read in raw chunks and split lines ourselves. stream-json emits single
+        # lines far larger than asyncio's 64 KB line-reader limit, and we must
+        # keep draining the pipe so the child never blocks on a full buffer.
         assert self._proc and self._proc.stdout
-        async for raw in self._proc.stdout:
-            line = raw.decode("utf-8", errors="replace").strip()
-            if not line:
-                continue
-            self._scan_event(line)
+        buf = b""
+        max_line = 64 * 1024 * 1024  # guard against unbounded growth on a line with no newline
+        while True:
+            chunk = await self._proc.stdout.read(65536)
+            if not chunk:
+                break
+            buf += chunk
+            while b"\n" in buf:
+                raw, buf = buf.split(b"\n", 1)
+                line = raw.decode("utf-8", errors="replace").strip()
+                if line:
+                    self._scan_event(line)
+            if len(buf) > max_line:
+                buf = b""  # drop a pathological partial line; progress is best-effort
+        tail = buf.decode("utf-8", errors="replace").strip()
+        if tail:
+            self._scan_event(tail)
 
     def _scan_event(self, line: str) -> None:
         """Best-effort progress extraction from a stream-json line."""
