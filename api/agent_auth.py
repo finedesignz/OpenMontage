@@ -1,30 +1,35 @@
 """Agent credential store.
 
 The headless agent (Claude Code CLI) needs its own credentials, separate from
-the API key callers use to reach this service. Two ways to supply them:
+the API key callers use to reach this service. There is exactly one supported
+source: a Claude subscription OAuth token, generated with `claude setup-token`
+on a machine already logged in, then pasted into the /setup page. It is
+persisted to the jobs volume so it survives redeploys and restarts, and exported
+to each agent subprocess as CLAUDE_CODE_OAUTH_TOKEN.
 
-1. A Claude subscription OAuth token, generated on a machine with a browser via
-   `claude setup-token`, then pasted into the /setup page. Persisted to the jobs
-   volume so it survives redeploys, and exported to the agent subprocess as
-   CLAUDE_CODE_OAUTH_TOKEN.
-2. An `sk-ant-...` API key set as ANTHROPIC_API_KEY in the environment.
-
-The stored token wins over the environment: the operator pasted it more
-recently than the container was configured.
+Metered `sk-ant-...` API keys are deliberately NOT a fallback — this service
+bills against the subscription, and a stray ANTHROPIC_API_KEY in the environment
+would silently start charging per token. The runner strips it.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Tokens from `claude setup-token` carry this prefix. Checking it turns a paste
+# of the wrong string (an API key, a session id) into an error at /setup rather
+# than a failed job an hour later.
+TOKEN_PREFIX = "sk-ant-oat"
+
 
 @dataclass(frozen=True)
 class AgentAuth:
-    source: str  # "oauth_token" | "api_key" | "none"
+    source: str  # "oauth_token" | "none"
     env: dict[str, str]
     updated_at: str | None = None
 
@@ -43,6 +48,11 @@ class AgentAuthStore:
         token = token.strip()
         if not token:
             raise ValueError("token is empty")
+        if not token.startswith(TOKEN_PREFIX):
+            raise ValueError(
+                f"that does not look like a subscription token (expected it to start "
+                f"with '{TOKEN_PREFIX}') — generate one with `claude setup-token`"
+            )
         payload = {"oauth_token": token, "updated_at": _now()}
         tmp = self._path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload), encoding="utf-8")
@@ -58,19 +68,14 @@ class AgentAuthStore:
 
     def load(self) -> AgentAuth:
         stored = self._read()
-        if stored:
-            token, updated = stored
-            # A subscription token authenticates against Anthropic directly; a
-            # stale ANTHROPIC_BASE_URL pointing at a gateway would break it.
-            return AgentAuth(
-                source="oauth_token",
-                env={"CLAUDE_CODE_OAUTH_TOKEN": token},
-                updated_at=updated,
-            )
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        if api_key:
-            return AgentAuth(source="api_key", env={"ANTHROPIC_API_KEY": api_key})
-        return AgentAuth(source="none", env={})
+        if not stored:
+            return AgentAuth(source="none", env={})
+        token, updated = stored
+        return AgentAuth(
+            source="oauth_token",
+            env={"CLAUDE_CODE_OAUTH_TOKEN": token},
+            updated_at=updated,
+        )
 
     def _read(self) -> tuple[str, str | None] | None:
         if not self._path.exists():
@@ -83,6 +88,38 @@ class AgentAuthStore:
         if not token:
             return None
         return token, data.get("updated_at")
+
+
+def verify_token(claude_bin: str, token: str, timeout: int = 90) -> tuple[bool, str]:
+    """Prove a token actually authenticates, by running the smallest real agent turn.
+
+    A token that merely *looks* right still fails an hour into a render. One
+    cheap round trip here turns that into an error the operator sees while they
+    still have the /setup page open.
+    """
+    env = dict(os.environ)
+    for shadow in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"):
+        env.pop(shadow, None)
+    env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    env["CI"] = "1"
+
+    try:
+        proc = subprocess.run(
+            [claude_bin, "-p", "Reply with the single word OK.", "--max-turns", "1"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"verification timed out after {timeout}s"
+    except OSError as exc:  # missing binary, not executable, bad interpreter
+        return False, f"could not run the agent binary ({claude_bin}): {exc}"
+
+    if proc.returncode == 0:
+        return True, "token accepted by Anthropic"
+    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+    return False, detail[-1][:300] if detail else f"agent exited with code {proc.returncode}"
 
 
 def _now() -> str:

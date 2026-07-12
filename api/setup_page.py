@@ -89,11 +89,9 @@ function paintState(data) {
   $("dot").className = "dot" + (live ? " live" : "");
   if (!live) {
     $("state").textContent = "Not authorized — the agent cannot run jobs yet.";
-  } else if (data.source === "oauth_token") {
-    const when = data.updated_at ? new Date(data.updated_at).toLocaleString() : "unknown time";
-    $("state").textContent = "Authorized with a Claude subscription token, set " + when + ".";
   } else {
-    $("state").textContent = "Authorized with an ANTHROPIC_API_KEY from the environment.";
+    const when = data.updated_at ? new Date(data.updated_at).toLocaleString() : "unknown time";
+    $("state").textContent = "Authorized on your Claude subscription since " + when + ".";
   }
 }
 
@@ -122,7 +120,7 @@ $("go").addEventListener("click", async () => {
     const data = await r.json().catch(() => ({}));
     if (r.ok) {
       $("token").value = "";
-      say("Agent authorized. New jobs will use this token.", true);
+      say("Token verified against Anthropic. The agent runs on your subscription and stays authorized across redeploys.", true);
       paintState(data);
     } else if (r.status === 401) {
       say("That API key was rejected.", false);

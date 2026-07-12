@@ -94,14 +94,16 @@ class AgentRun:
         auth = AgentAuthStore(self._s.jobs_dir).load()
         if not auth.configured:
             raise RuntimeError(
-                "no agent credentials configured — paste a Claude subscription token "
-                "at /setup (generate it with `claude setup-token`) or set ANTHROPIC_API_KEY"
+                "no agent credentials configured — paste a Claude subscription token at "
+                "/setup (generate it with `claude setup-token`)"
             )
-        if auth.source == "oauth_token":
-            # A subscription token talks to Anthropic directly. Any inherited
-            # gateway/base-url or API key would shadow it.
-            env.pop("ANTHROPIC_BASE_URL", None)
-            env.pop("ANTHROPIC_API_KEY", None)
+        # The agent runs on the subscription, never on a metered key. A stray
+        # ANTHROPIC_API_KEY would silently bill per token, and a stale
+        # ANTHROPIC_BASE_URL would point the CLI at a gateway instead of
+        # Anthropic. Both shadow the token, so both are removed unconditionally.
+        env.pop("ANTHROPIC_API_KEY", None)
+        env.pop("ANTHROPIC_BASE_URL", None)
+        env.pop("ANTHROPIC_AUTH_TOKEN", None)
         env.update(auth.env)
 
         self._proc = await asyncio.create_subprocess_exec(

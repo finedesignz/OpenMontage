@@ -24,7 +24,7 @@ import yaml
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 
-from .agent_auth import AgentAuthStore
+from .agent_auth import TOKEN_PREFIX, AgentAuthStore, verify_token
 from .auth import require_api_key
 from .config import get_settings
 from .jobs import JobManager
@@ -99,11 +99,34 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
     async def set_agent_token(req: SetTokenRequest) -> AgentAuthStatus:
+        token = req.token.strip()
+        if not token.startswith(TOKEN_PREFIX):
+            raise HTTPException(
+                400,
+                f"that does not look like a subscription token (expected it to start with "
+                f"'{TOKEN_PREFIX}') — generate one with `claude setup-token`",
+            )
+        # Prove the token works before persisting it, so a bad paste fails here
+        # rather than silently breaking every future job.
+        ok, detail = await asyncio.to_thread(verify_token, settings.claude_bin, token)
+        if not ok:
+            raise HTTPException(400, f"token rejected: {detail}")
         try:
-            auth_store.set_token(req.token)
+            auth_store.set_token(token)
         except ValueError as exc:
             raise HTTPException(400, str(exc))
         return _status()
+
+    @app.post("/v1/auth/verify", tags=["auth"], dependencies=[Depends(require_api_key)])
+    async def verify_agent_token() -> dict:
+        """Re-check the stored token against Anthropic — is the agent still connected?"""
+        auth = auth_store.load()
+        if not auth.configured:
+            raise HTTPException(409, "no token stored — paste one at /setup")
+        ok, detail = await asyncio.to_thread(
+            verify_token, settings.claude_bin, auth.env["CLAUDE_CODE_OAUTH_TOKEN"]
+        )
+        return {"valid": ok, "detail": detail, "updated_at": auth.updated_at}
 
     @app.delete("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
     async def clear_agent_token() -> AgentAuthStatus:
