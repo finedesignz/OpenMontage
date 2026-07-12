@@ -22,19 +22,23 @@ from contextlib import asynccontextmanager
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
+from .agent_auth import AgentAuthStore
 from .auth import require_api_key
 from .config import get_settings
 from .jobs import JobManager
 from .models import (
+    AgentAuthStatus,
     CreateJobRequest,
     HealthResponse,
     JobList,
     JobRecord,
     JobResult,
     PipelineInfo,
+    SetTokenRequest,
 )
+from .setup_page import SETUP_HTML
 
 API_VERSION = "0.1.0"
 
@@ -63,11 +67,48 @@ def create_app() -> FastAPI:
             version=API_VERSION,
             agent_runtime=settings.claude_bin,
             active_jobs=jm.active_count if jm else 0,
+            agent_authorized=auth_store.load().configured,
         )
 
     @app.get("/", tags=["meta"])
     async def root() -> dict:
-        return {"service": "openmontage", "version": API_VERSION, "docs": "/docs"}
+        return {"service": "openmontage", "version": API_VERSION, "docs": "/docs", "setup": "/setup"}
+
+    # ---- agent authorization -----------------------------------------------
+    # The headless agent needs credentials of its own. /setup lets an operator
+    # paste a Claude subscription token (from `claude setup-token`) into the
+    # running container without a redeploy.
+
+    auth_store = AgentAuthStore(settings.jobs_dir)
+
+    def _status() -> AgentAuthStatus:
+        auth = auth_store.load()
+        return AgentAuthStatus(
+            configured=auth.configured, source=auth.source, updated_at=auth.updated_at
+        )
+
+    @app.get("/setup", response_class=HTMLResponse, include_in_schema=False)
+    async def setup_page() -> HTMLResponse:
+        return HTMLResponse(SETUP_HTML)
+
+    # Unauthenticated on purpose: it reveals only whether the agent can run, and
+    # the page must render it before the operator has typed a key.
+    @app.get("/v1/auth/status", response_model=AgentAuthStatus, tags=["auth"])
+    async def auth_status() -> AgentAuthStatus:
+        return _status()
+
+    @app.post("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
+    async def set_agent_token(req: SetTokenRequest) -> AgentAuthStatus:
+        try:
+            auth_store.set_token(req.token)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        return _status()
+
+    @app.delete("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
+    async def clear_agent_token() -> AgentAuthStatus:
+        auth_store.clear()
+        return _status()
 
     # ---- jobs --------------------------------------------------------------
 

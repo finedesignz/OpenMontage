@@ -88,9 +88,25 @@ class PipelineInfo(BaseModel):
     stability: str | None = None
 
 
+class SetTokenRequest(BaseModel):
+    token: str = Field(
+        ...,
+        min_length=1,
+        description="Claude subscription OAuth token, from `claude setup-token`.",
+    )
+
+
+class AgentAuthStatus(BaseModel):
+    configured: bool
+    source: str = Field(..., description="oauth_token | api_key | none")
+    updated_at: str | None = None
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     service: str = "openmontage"
     version: str
     agent_runtime: str
     active_jobs: int
+    # False => the agent has no credentials and every job will fail. See /setup.
+    agent_authorized: bool = False

@@ -20,6 +20,7 @@ import os
 import signal
 from collections.abc import Callable
 
+from .agent_auth import AgentAuthStore
 from .config import Settings
 
 ProgressCb = Callable[[str, str], None]  # (stage, note) -> None
@@ -89,6 +90,19 @@ class AgentRun:
         env = dict(os.environ)
         env["OPENMONTAGE_BUDGET_USD"] = f"{budget_usd}"
         env.setdefault("CI", "1")  # discourage interactive prompts in child tooling
+
+        auth = AgentAuthStore(self._s.jobs_dir).load()
+        if not auth.configured:
+            raise RuntimeError(
+                "no agent credentials configured — paste a Claude subscription token "
+                "at /setup (generate it with `claude setup-token`) or set ANTHROPIC_API_KEY"
+            )
+        if auth.source == "oauth_token":
+            # A subscription token talks to Anthropic directly. Any inherited
+            # gateway/base-url or API key would shadow it.
+            env.pop("ANTHROPIC_BASE_URL", None)
+            env.pop("ANTHROPIC_API_KEY", None)
+        env.update(auth.env)
 
         self._proc = await asyncio.create_subprocess_exec(
             *argv,
