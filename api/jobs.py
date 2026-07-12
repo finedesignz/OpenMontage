@@ -167,6 +167,10 @@ class JobManager:
                     if exit_code == 0
                     else f"agent exited with code {exit_code}"
                 )
+                # Without the agent's own words, a bare exit code sends whoever
+                # debugs this into the container to find a one-line refusal.
+                if run.failure_reason:
+                    reason = f"{reason}: {run.failure_reason[:600]}"
                 self._update(
                     job_id,
                     status=JobStatus.failed,
