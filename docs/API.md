@@ -42,6 +42,30 @@ All `/v1/*` routes require an API key when `OPENMONTAGE_API_KEYS` is set
 | `POST` | `/v1/jobs/{id}/cancel` | Cancel a running job |
 | `GET` | `/v1/pipelines` | Available pipelines |
 | `GET` | `/v1/capabilities` | Provider/capability menu (preflight) |
+| `GET` | `/setup` | Page to authorize the agent (paste a subscription token) |
+| `GET` | `/v1/auth/status` | Is the agent authorized? (open — reveals no secret) |
+| `POST` | `/v1/auth/token` | Store a subscription token (verified before it is saved) |
+| `POST` | `/v1/auth/verify` | Re-check the stored token against Anthropic |
+| `DELETE` | `/v1/auth/token` | Forget the stored token |
+
+## Authorizing the agent
+
+Every render is driven by a headless Claude Code agent inside the container, and
+it needs credentials of its own — separate from the API key callers use to reach
+this service. **The only supported credential is a Claude subscription token.**
+Metered `sk-ant-...` API keys are not a fallback: the runner strips
+`ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, and `ANTHROPIC_AUTH_TOKEN` from the
+agent's environment, so a stray key can never silently bill per token.
+
+1. On any machine already logged in to Claude Code, run `claude setup-token`.
+2. Open `https://<your-domain>/setup`, enter an `OPENMONTAGE_API_KEYS` value and
+   paste the token.
+3. The API runs one real agent turn to prove the token authenticates, then
+   persists it to the `/app/jobs` volume — so it survives redeploys and restarts.
+
+`GET /health` reports `agent_authorized`; until it is `true`, every job fails
+fast with a message pointing at `/setup`. `POST /v1/auth/verify` re-checks a
+stored token's liveness at any time (tokens are long-lived but not eternal).
 
 ### Job lifecycle
 
@@ -77,7 +101,6 @@ curl -sO https://openmontage.example.com/v1/jobs/ab12.../artifacts/final.mp4 -H 
 |-----|---------|---------|
 | `OPENMONTAGE_API_KEYS` | _(none)_ | Comma-separated bearer keys. **Empty = auth disabled** (dev only). |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address. |
-| `ANTHROPIC_API_KEY` | _(required)_ | Auth for the headless Claude agent. |
 | `OPENMONTAGE_MAX_CONCURRENCY` | `2` | Concurrent production jobs. |
 | `OPENMONTAGE_JOB_TIMEOUT` | `3600` | Per-job wall-clock ceiling (seconds). |
 | `OPENMONTAGE_BUDGET_USD` | `10` | Per-job provider spend cap handed to the agent. |
@@ -94,19 +117,23 @@ uvicorn api.main:app --reload --port 8080
 # open http://localhost:8080/docs
 ```
 
-Without `ANTHROPIC_API_KEY` + the `claude` CLI, jobs will fail at the agent
-launch step — but `/health`, `/v1/pipelines`, and `/docs` work for wiring/tests.
+Until the agent is authorized (see above) jobs fail fast at the launch step — but
+`/health`, `/v1/pipelines`, `/setup`, and `/docs` work for wiring and tests.
 
 ## Deploy on Coolify
 
 1. New resource → **Dockerfile** build, repo = OpenMontage.
 2. Dockerfile location: `Dockerfile.api`. Base directory: `/`.
 3. Port: `8080`. Healthcheck path: `/health`.
-4. Env vars: `ANTHROPIC_API_KEY`, `OPENMONTAGE_API_KEYS`, plus any provider keys
-   you want enabled (`FAL_KEY`, `OPENAI_API_KEY`, …).
-5. **Persistent volumes:** mount `/app/jobs` and `/app/projects` so job history
-   and renders survive redeploys.
+4. Env vars: `OPENMONTAGE_API_KEYS`, plus any provider keys you want enabled
+   (`FAL_KEY`, `OPENAI_API_KEY`, …). Do **not** set `ANTHROPIC_API_KEY` or
+   `ANTHROPIC_BASE_URL` — the agent runs on the subscription token instead.
+5. **Persistent volumes:** mount `/app/jobs` and `/app/projects` so job history,
+   renders, *and the agent's subscription token* survive redeploys. Without the
+   `/app/jobs` volume you must re-authorize at `/setup` after every deploy.
 6. Domain → `openmontage.<your-domain>`; verify `GET /health` returns `200`.
+7. Visit `/setup` and paste a `claude setup-token` token. `/health` should then
+   report `"agent_authorized": true`.
 
 ## Notes & limits
 
