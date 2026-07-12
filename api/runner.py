@@ -66,6 +66,7 @@ class AgentRun:
         self._s = settings
         self._on_progress = on_progress
         self._proc: asyncio.subprocess.Process | None = None
+        self._stderr: list[str] = []
 
     async def execute(
         self, prompt: str, project_slug: str, pipeline: str | None, budget_usd: float
@@ -115,7 +116,10 @@ class AgentRun:
         )
 
         try:
-            await asyncio.wait_for(self._pump_stdout(), timeout=self._s.job_timeout_seconds)
+            await asyncio.wait_for(
+                asyncio.gather(self._pump_stdout(), self._pump_stderr()),
+                timeout=self._s.job_timeout_seconds,
+            )
             return await self._proc.wait()
         except asyncio.TimeoutError:
             self._on_progress("timeout", f"exceeded {self._s.job_timeout_seconds}s")
@@ -124,6 +128,11 @@ class AgentRun:
         except asyncio.CancelledError:
             await self._terminate()
             raise
+
+    @property
+    def stderr_tail(self) -> str:
+        """Last few stderr lines — the reason a failed agent actually failed."""
+        return "\n".join(self._stderr[-5:]).strip()
 
     async def cancel(self) -> None:
         await self._terminate()
@@ -164,6 +173,19 @@ class AgentRun:
         tail = buf.decode("utf-8", errors="replace").strip()
         if tail:
             self._scan_event(tail)
+
+    async def _pump_stderr(self) -> None:
+        # Keep the pipe drained (a full stderr buffer would deadlock the child)
+        # and keep the tail, which is where the CLI puts its refusal reasons.
+        assert self._proc and self._proc.stderr
+        while True:
+            raw = await self._proc.stderr.readline()
+            if not raw:
+                break
+            line = raw.decode("utf-8", errors="replace").strip()
+            if line:
+                self._stderr.append(line)
+                del self._stderr[:-50]
 
     def _scan_event(self, line: str) -> None:
         """Best-effort progress extraction from a stream-json line."""

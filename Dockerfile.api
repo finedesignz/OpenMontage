@@ -11,9 +11,9 @@
 
 FROM node:20-bookworm-slim
 
-# Python + ffmpeg + build basics
+# Python + ffmpeg + build basics. gosu drops privileges in the entrypoint.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv ffmpeg ca-certificates curl \
+        python3 python3-pip python3-venv ffmpeg ca-certificates curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # The agent runtime: Claude Code CLI, driven headlessly per job.
@@ -34,9 +34,17 @@ RUN cd remotion-composer && npm install --no-audit --no-fund
 # --- App source ---
 COPY . .
 
+# The agent runs with --permission-mode bypassPermissions, which the Claude Code
+# CLI refuses to honour under uid 0 — for good reason. Run the whole app as an
+# unprivileged user instead of setting IS_SANDBOX=1 to silence that check.
+RUN useradd --create-home --uid 1001 agent && chown -R agent:agent /app
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 ENV PORT=8080 \
     HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1 \
+    HOME=/home/agent \
     OPENMONTAGE_CLAUDE_BIN=claude
 
 EXPOSE 8080
@@ -46,4 +54,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # Single worker: each job is an out-of-process agent, and the JobManager keeps
 # in-memory task state. Scale by running more job slots, not more web workers.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sh", "-c", "uvicorn api.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8080}"]
