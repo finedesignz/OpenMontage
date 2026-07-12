@@ -67,6 +67,7 @@ class AgentRun:
         self._on_progress = on_progress
         self._proc: asyncio.subprocess.Process | None = None
         self._stderr: list[str] = []
+        self._result_error: str = ""
 
     async def execute(
         self, prompt: str, project_slug: str, pipeline: str | None, budget_usd: float
@@ -130,8 +131,10 @@ class AgentRun:
             raise
 
     @property
-    def stderr_tail(self) -> str:
-        """Last few stderr lines — the reason a failed agent actually failed."""
+    def failure_reason(self) -> str:
+        """Why the agent actually failed: its own result event, else stderr."""
+        if self._result_error:
+            return self._result_error
         return "\n".join(self._stderr[-5:]).strip()
 
     async def cancel(self) -> None:
@@ -199,7 +202,14 @@ class AgentRun:
             if text:
                 self._on_progress("running", text[:280])
         elif etype == "result":
-            note = "agent finished" if not evt.get("is_error") else "agent reported error"
+            # The CLI reports why it stopped here, not on stderr — a turn-limit
+            # exit writes nothing to stderr and just returns 1. Keep it, or a
+            # failed job can only say "exited with code 1".
+            if evt.get("is_error"):
+                subtype = evt.get("subtype") or "error"
+                summary = evt.get("result") or evt.get("error") or ""
+                self._result_error = f"{subtype}: {summary}".strip(": ").strip()
+            note = "agent reported error" if evt.get("is_error") else "agent finished"
             self._on_progress("finalizing", note)
 
 

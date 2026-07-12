@@ -49,7 +49,10 @@ class Settings:
     # Path to the Claude Code CLI binary used to drive a job headlessly.
     claude_bin: str = os.environ.get("OPENMONTAGE_CLAUDE_BIN", "claude")
     agent_model: str = os.environ.get("OPENMONTAGE_AGENT_MODEL", "")  # "" => CLI default
-    agent_max_turns: int = _int("OPENMONTAGE_AGENT_MAX_TURNS", 120)
+    # A full production (research -> proposal -> script -> scene plan -> assets ->
+    # edit -> compose) burned through 120 turns before reaching compose. The cap
+    # is a runaway guard, not a budget — spend is capped separately by budget_usd.
+    agent_max_turns: int = _int("OPENMONTAGE_AGENT_MAX_TURNS", 400)
     # Per-job budget cap (USD) handed to the agent. Mirrors the app's own
     # budget governance default ($10).
     budget_usd: float = float(os.environ.get("OPENMONTAGE_BUDGET_USD", "10") or "10")
