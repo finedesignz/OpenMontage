@@ -105,7 +105,7 @@ def verify_token(claude_bin: str, token: str, timeout: int = 90) -> tuple[bool, 
 
     try:
         proc = subprocess.run(
-            [claude_bin, "-p", "Reply with the single word OK.", "--max-turns", "1"],
+            [claude_bin, "-p", "Reply with the single word OK.", "--max-turns", "3"],
             env=env,
             capture_output=True,
             text=True,
@@ -118,7 +118,13 @@ def verify_token(claude_bin: str, token: str, timeout: int = 90) -> tuple[bool, 
 
     if proc.returncode == 0:
         return True, "token accepted by Anthropic"
-    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+
+    output = f"{proc.stdout}\n{proc.stderr}".strip()
+    # A turn-limit exit is not an auth failure: the request reached Anthropic and
+    # the model answered. Only a credential complaint means the token is bad.
+    if "max turns" in output.lower():
+        return True, "token accepted by Anthropic"
+    detail = output.splitlines()
     return False, detail[-1][:300] if detail else f"agent exited with code {proc.returncode}"
 
 
