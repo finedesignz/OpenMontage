@@ -62,9 +62,33 @@ class Settings:
     jobs_dir: Path = field(default_factory=lambda: REPO_ROOT / "jobs")
     projects_dir: Path = field(default_factory=lambda: REPO_ROOT / "projects")
 
+    # Explicit dev opt-out. Without keys AND without this flag, a non-loopback
+    # bind refuses to boot rather than serving every route unauthenticated.
+    allow_no_auth: bool = field(
+        default_factory=lambda: os.environ.get("OPENMONTAGE_ALLOW_NO_AUTH", "").strip() in ("1", "true", "yes")
+    )
+
     @property
     def auth_enabled(self) -> bool:
         return bool(self.api_keys)
+
+    def validate_boot(self) -> None:
+        """Fail closed: never come up publicly reachable with auth disabled.
+
+        An unset OPENMONTAGE_API_KEYS used to serve every route — including the
+        agent-credential routes — with no auth. Now that only happens on a
+        loopback bind or with an explicit dev opt-in.
+        """
+        if self.auth_enabled:
+            return
+        loopback = self.host in ("127.0.0.1", "localhost", "::1")
+        if loopback or self.allow_no_auth:
+            return
+        raise RuntimeError(
+            "refusing to start: OPENMONTAGE_API_KEYS is empty and the service is "
+            f"bound to {self.host} (public). Set OPENMONTAGE_API_KEYS, or set "
+            "OPENMONTAGE_ALLOW_NO_AUTH=1 to explicitly run without auth (dev only)."
+        )
 
 
 _settings: Settings | None = None
