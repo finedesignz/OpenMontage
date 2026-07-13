@@ -88,6 +88,10 @@ class PipelineInfo(BaseModel):
     stability: str | None = None
 
 
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254, description="Operator email for the magic link.")
+
+
 class SetTokenRequest(BaseModel):
     token: str = Field(
         ...,

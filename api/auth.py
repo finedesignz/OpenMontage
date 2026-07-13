@@ -1,17 +1,33 @@
-"""Bearer-key auth dependency.
+"""Bearer-key auth dependency (machine callers).
 
 The API accepts a key via `X-API-Key: <key>` or `Authorization: Bearer <key>`.
-Keys are configured with OPENMONTAGE_API_KEYS (comma-separated). When none are
-set, auth is disabled — convenient for local dev, but the service should never
-be exposed publicly without keys. In the Coolify/MCP-gateway topology the
-gateway holds the key and injects it on each call.
+Keys are configured with OPENMONTAGE_API_KEYS (comma-separated). This is the
+credential MCP servers and the gateway use; human operators use the Titanium
+session instead (see api/session.py).
+
+Auth may only be disabled by explicit opt-in (OPENMONTAGE_ALLOW_NO_AUTH=1) for
+local dev. A public bind with no keys and no opt-in refuses to boot — see
+config.validate_boot(). We never silently fail open on a misconfigured deploy.
 """
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Header, HTTPException, status
 
 from .config import get_settings
+
+
+def _key_accepted(presented: str, configured: list[str]) -> bool:
+    # Constant-time compare so a network attacker cannot recover a key byte by
+    # byte from response timing. Compare against every configured key (not a
+    # membership test, which short-circuits on the first differing byte).
+    accepted = False
+    for key in configured:
+        if hmac.compare_digest(presented, key):
+            accepted = True
+    return accepted
 
 
 def require_api_key(
@@ -20,11 +36,13 @@ def require_api_key(
 ) -> None:
     settings = get_settings()
     if not settings.auth_enabled:
+        # Only reachable when OPENMONTAGE_ALLOW_NO_AUTH=1; validate_boot() has
+        # already refused a public bind without keys.
         return
     presented = x_api_key
     if not presented and authorization and authorization.lower().startswith("bearer "):
         presented = authorization[7:].strip()
-    if not presented or presented not in settings.api_keys:
+    if not presented or not _key_accepted(presented, settings.api_keys):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="missing or invalid API key",

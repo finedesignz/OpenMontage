@@ -57,14 +57,55 @@ class Settings:
     # budget governance default ($10).
     budget_usd: float = float(os.environ.get("OPENMONTAGE_BUDGET_USD", "10") or "10")
 
+    # --- Human operator auth (Titanium magic-link) --------------------------
+    # AUTH_ONLY_MODE: identity only, no license key needed. When the portal URL
+    # + app id + return URL are all set, /setup requires an operator login.
+    titanium_portal_url: str = field(
+        default_factory=lambda: os.environ.get("TITANIUM_PORTAL_URL", "https://license.titaniumlabs.us")
+    )
+    titanium_app_id: str = field(default_factory=lambda: os.environ.get("TITANIUM_APP_ID", ""))
+    titanium_return_url: str = field(default_factory=lambda: os.environ.get("TITANIUM_RETURN_URL", ""))
+    # Optional allowlist of emails permitted to log in (comma-separated). Empty
+    # => any address the portal will send a link to may authenticate.
+    operator_emails: list[str] = field(default_factory=lambda: _keys("OPENMONTAGE_OPERATOR_EMAILS"))
+
     # --- Storage ------------------------------------------------------------
     repo_root: Path = REPO_ROOT
     jobs_dir: Path = field(default_factory=lambda: REPO_ROOT / "jobs")
     projects_dir: Path = field(default_factory=lambda: REPO_ROOT / "projects")
 
+    # Explicit dev opt-out. Without keys AND without this flag, a non-loopback
+    # bind refuses to boot rather than serving every route unauthenticated.
+    allow_no_auth: bool = field(
+        default_factory=lambda: os.environ.get("OPENMONTAGE_ALLOW_NO_AUTH", "").strip() in ("1", "true", "yes")
+    )
+
     @property
     def auth_enabled(self) -> bool:
         return bool(self.api_keys)
+
+    @property
+    def operator_auth_enabled(self) -> bool:
+        # Human login is active only once the portal wiring is complete.
+        return bool(self.titanium_portal_url and self.titanium_app_id and self.titanium_return_url)
+
+    def validate_boot(self) -> None:
+        """Fail closed: never come up publicly reachable with auth disabled.
+
+        An unset OPENMONTAGE_API_KEYS used to serve every route — including the
+        agent-credential routes — with no auth. Now that only happens on a
+        loopback bind or with an explicit dev opt-in.
+        """
+        if self.auth_enabled:
+            return
+        loopback = self.host in ("127.0.0.1", "localhost", "::1")
+        if loopback or self.allow_no_auth:
+            return
+        raise RuntimeError(
+            "refusing to start: OPENMONTAGE_API_KEYS is empty and the service is "
+            f"bound to {self.host} (public). Set OPENMONTAGE_API_KEYS, or set "
+            "OPENMONTAGE_ALLOW_NO_AUTH=1 to explicitly run without auth (dev only)."
+        )
 
 
 _settings: Settings | None = None
