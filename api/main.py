@@ -45,6 +45,7 @@ API_VERSION = "0.1.0"
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings.validate_boot()  # fail closed on a public bind with no auth configured
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
