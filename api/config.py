@@ -57,6 +57,18 @@ class Settings:
     # budget governance default ($10).
     budget_usd: float = float(os.environ.get("OPENMONTAGE_BUDGET_USD", "10") or "10")
 
+    # --- Human operator auth (Titanium magic-link) --------------------------
+    # AUTH_ONLY_MODE: identity only, no license key needed. When the portal URL
+    # + app id + return URL are all set, /setup requires an operator login.
+    titanium_portal_url: str = field(
+        default_factory=lambda: os.environ.get("TITANIUM_PORTAL_URL", "https://license.titaniumlabs.us")
+    )
+    titanium_app_id: str = field(default_factory=lambda: os.environ.get("TITANIUM_APP_ID", ""))
+    titanium_return_url: str = field(default_factory=lambda: os.environ.get("TITANIUM_RETURN_URL", ""))
+    # Optional allowlist of emails permitted to log in (comma-separated). Empty
+    # => any address the portal will send a link to may authenticate.
+    operator_emails: list[str] = field(default_factory=lambda: _keys("OPENMONTAGE_OPERATOR_EMAILS"))
+
     # --- Storage ------------------------------------------------------------
     repo_root: Path = REPO_ROOT
     jobs_dir: Path = field(default_factory=lambda: REPO_ROOT / "jobs")
@@ -71,6 +83,11 @@ class Settings:
     @property
     def auth_enabled(self) -> bool:
         return bool(self.api_keys)
+
+    @property
+    def operator_auth_enabled(self) -> bool:
+        # Human login is active only once the portal wiring is complete.
+        return bool(self.titanium_portal_url and self.titanium_app_id and self.titanium_return_url)
 
     def validate_boot(self) -> None:
         """Fail closed: never come up publicly reachable with auth disabled.

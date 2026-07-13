@@ -21,8 +21,8 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import yaml
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from .agent_auth import TOKEN_PREFIX, AgentAuthStore, verify_token
 from .auth import require_api_key
@@ -35,10 +35,18 @@ from .models import (
     JobList,
     JobRecord,
     JobResult,
+    LoginRequest,
     PipelineInfo,
     SetTokenRequest,
 )
-from .setup_page import SETUP_HTML
+from .session import (
+    COOKIE_NAME,
+    SESSION_TTL_SECONDS,
+    PortalClient,
+    PortalError,
+    SessionManager,
+)
+from .setup_page import LOGIN_HTML, render_setup
 
 API_VERSION = "0.1.0"
 
@@ -75,12 +83,37 @@ def create_app() -> FastAPI:
     async def root() -> dict:
         return {"service": "openmontage", "version": API_VERSION, "docs": "/docs", "setup": "/setup"}
 
-    # ---- agent authorization -----------------------------------------------
-    # The headless agent needs credentials of its own. /setup lets an operator
-    # paste a Claude subscription token (from `claude setup-token`) into the
-    # running container without a redeploy.
+    # ---- operator login (Titanium magic-link) ------------------------------
+    # /setup and the agent-credential routes are operator actions. When the
+    # Titanium portal is wired (operator_auth_enabled), they require a human
+    # session; until then they fall back to the machine API key so a partial
+    # rollout can't lock the operator out.
 
     auth_store = AgentAuthStore(settings.jobs_dir)
+    session_mgr = SessionManager(settings)
+    portal = PortalClient(settings)
+
+    def _require_operator(request: Request) -> None:
+        """Gate operator actions: a valid session, or (fallback) the API key."""
+        if settings.operator_auth_enabled:
+            sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
+            if sess:
+                return
+        # Machine callers (and the pre-login rollout window) use the API key.
+        require_api_key(request.headers.get("x-api-key"), request.headers.get("authorization"))
+
+    def _check_origin(request: Request) -> None:
+        # CSRF defence for cookie-authenticated mutations: the session cookie is
+        # SameSite=Strict, and we additionally require a same-origin Origin
+        # header on state-changing requests. API-key callers send no cookie and
+        # are unaffected.
+        if not settings.operator_auth_enabled:
+            return
+        origin = request.headers.get("origin")
+        if origin and settings.titanium_return_url:
+            allowed = settings.titanium_return_url.split("/auth/")[0]
+            if not origin.rstrip("/").startswith(allowed.rstrip("/")):
+                raise HTTPException(403, "cross-origin request refused")
 
     def _status() -> AgentAuthStatus:
         auth = auth_store.load()
@@ -88,18 +121,81 @@ def create_app() -> FastAPI:
             configured=auth.configured, source=auth.source, updated_at=auth.updated_at
         )
 
-    @app.get("/setup", response_class=HTMLResponse, include_in_schema=False)
-    async def setup_page() -> HTMLResponse:
-        return HTMLResponse(SETUP_HTML)
+    @app.post("/auth/login", include_in_schema=False)
+    async def auth_login(payload: LoginRequest) -> dict:
+        if not portal.configured:
+            raise HTTPException(503, "operator login is not configured on this deployment")
+        email = payload.email.strip().lower()
+        if settings.operator_emails and email not in [e.lower() for e in settings.operator_emails]:
+            # Do not reveal whether an address is on the allowlist.
+            return {"ok": True}
+        try:
+            await portal.send_magic_link(email)
+        except PortalError as exc:
+            raise HTTPException(exc.status, exc.detail)
+        return {"ok": True}
 
-    # Unauthenticated on purpose: it reveals only whether the agent can run, and
-    # the page must render it before the operator has typed a key.
+    @app.get("/auth/callback", include_in_schema=False)
+    async def auth_callback(act: str | None = None) -> RedirectResponse:
+        if not act:
+            raise HTTPException(400, "missing activation token")
+        try:
+            email = await portal.exchange(act)
+        except PortalError as exc:
+            raise HTTPException(exc.status, exc.detail)
+        if settings.operator_emails and email.lower() not in [e.lower() for e in settings.operator_emails]:
+            raise HTTPException(403, "this account is not an authorised operator")
+        resp = RedirectResponse("/setup", status_code=302)
+        resp.set_cookie(
+            COOKIE_NAME,
+            session_mgr.issue(email),
+            max_age=SESSION_TTL_SECONDS,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+        )
+        return resp
+
+    @app.post("/auth/logout", include_in_schema=False)
+    async def auth_logout() -> RedirectResponse:
+        resp = RedirectResponse("/setup", status_code=302)
+        resp.delete_cookie(COOKIE_NAME, path="/")
+        return resp
+
+    # ---- agent authorization -----------------------------------------------
+
+    @app.get("/setup", response_class=HTMLResponse, include_in_schema=False)
+    async def setup_page(request: Request) -> HTMLResponse:
+        # Show the login view until the operator has a session; the token view
+        # after. When operator auth is not wired, the token view is shown
+        # directly (the API-key fallback guards the mutation).
+        if settings.operator_auth_enabled:
+            sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
+            if not sess:
+                return HTMLResponse(LOGIN_HTML)
+            return HTMLResponse(render_setup(sess.email))
+        return HTMLResponse(render_setup(None))
+
+    @app.get("/v1/auth/session", tags=["auth"], include_in_schema=False)
+    async def auth_session(request: Request) -> dict:
+        sess = session_mgr.verify(request.cookies.get(COOKIE_NAME)) if settings.operator_auth_enabled else None
+        return {
+            "login_required": settings.operator_auth_enabled,
+            "authenticated": bool(sess) or not settings.operator_auth_enabled,
+            "email": sess.email if sess else None,
+        }
+
+    # Unauthenticated: reveals only whether the agent can run, and the page must
+    # render it before the operator has logged in.
     @app.get("/v1/auth/status", response_model=AgentAuthStatus, tags=["auth"])
     async def auth_status() -> AgentAuthStatus:
         return _status()
 
-    @app.post("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
-    async def set_agent_token(req: SetTokenRequest) -> AgentAuthStatus:
+    @app.post("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"])
+    async def set_agent_token(req: SetTokenRequest, request: Request) -> AgentAuthStatus:
+        _require_operator(request)
+        _check_origin(request)
         token = req.token.strip()
         if not token.startswith(TOKEN_PREFIX):
             raise HTTPException(
@@ -118,9 +214,10 @@ def create_app() -> FastAPI:
             raise HTTPException(400, str(exc))
         return _status()
 
-    @app.post("/v1/auth/verify", tags=["auth"], dependencies=[Depends(require_api_key)])
-    async def verify_agent_token() -> dict:
+    @app.post("/v1/auth/verify", tags=["auth"])
+    async def verify_agent_token(request: Request) -> dict:
         """Re-check the stored token against Anthropic — is the agent still connected?"""
+        _require_operator(request)
         auth = auth_store.load()
         if not auth.configured:
             raise HTTPException(409, "no token stored — paste one at /setup")
@@ -129,8 +226,10 @@ def create_app() -> FastAPI:
         )
         return {"valid": ok, "detail": detail, "updated_at": auth.updated_at}
 
-    @app.delete("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"], dependencies=[Depends(require_api_key)])
-    async def clear_agent_token() -> AgentAuthStatus:
+    @app.delete("/v1/auth/token", response_model=AgentAuthStatus, tags=["auth"])
+    async def clear_agent_token(request: Request) -> AgentAuthStatus:
+        _require_operator(request)
+        _check_origin(request)
         auth_store.clear()
         return _status()
 
