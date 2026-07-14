@@ -45,6 +45,13 @@ import { TerminalScene } from "./components/TerminalScene";
 import type { TerminalStep } from "./components/TerminalScene";
 import { ScreenshotScene } from "./components/ScreenshotScene";
 import type { ScreenshotStep } from "./components/ScreenshotScene";
+import { ScreenWalkthrough } from "./components/ScreenWalkthrough";
+import type {
+  ZoomRegion,
+  CursorKeyframe,
+  ClickRipple,
+  InkCallout,
+} from "./components/ScreenWalkthrough";
 import { ProviderChip } from "./components/ProviderChip";
 import type { ParticleType } from "./components/ParticleOverlay";
 import { resolveTheme, type ThemeConfig, DEFAULT_THEME } from "./Root";
@@ -268,6 +275,14 @@ interface Cut {
   screenshotSteps?: ScreenshotStep[];
   screenshotSize?: { width: number; height: number };
   cursorStartAt?: [number, number];
+  // Screen walkthrough props (type: "screen_walkthrough")
+  captureWidth?: number;
+  captureHeight?: number;
+  zoomRegions?: ZoomRegion[];
+  cursorTrack?: CursorKeyframe[];
+  clickRipples?: ClickRipple[];
+  inkCallouts?: InkCallout[];
+  cursorTravelSeconds?: number;
 }
 
 interface Overlay {
@@ -605,6 +620,22 @@ const SceneRenderer: React.FC<{ cut: Cut; theme: ThemeConfig }> = ({ cut, theme 
         prompt={cut.prompt}
         accentColor={accent}
         backgroundColor={bgColor || theme.backgroundColor}
+      />
+    );
+  }
+  if (cut.type === "screen_walkthrough" && cut.source) {
+    return (
+      <ScreenWalkthrough
+        source={cut.source}
+        captureWidth={cut.captureWidth}
+        captureHeight={cut.captureHeight}
+        sourceInSeconds={cut.source_in_seconds ?? 0}
+        zoomRegions={cut.zoomRegions}
+        cursorTrack={cut.cursorTrack}
+        clickRipples={cut.clickRipples}
+        inkCallouts={cut.inkCallouts}
+        cursorTravelSeconds={cut.cursorTravelSeconds}
+        accentColor={accent}
       />
     );
   }

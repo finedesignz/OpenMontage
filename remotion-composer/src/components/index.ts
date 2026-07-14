@@ -17,3 +17,11 @@ export type { ParticleType } from "./ParticleOverlay";
 export type { CameraMotion, AnimeSceneProps } from "./AnimeScene";
 export type { TerminalStep } from "./TerminalScene";
 export type { ScreenshotStep, Region, Point } from "./ScreenshotScene";
+export { ScreenWalkthrough } from "./ScreenWalkthrough";
+export type {
+  ZoomRegion,
+  CursorKeyframe,
+  ClickRipple,
+  InkCallout,
+  ScreenWalkthroughProps,
+} from "./ScreenWalkthrough";

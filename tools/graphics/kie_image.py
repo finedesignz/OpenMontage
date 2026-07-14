@@ -39,6 +39,11 @@ BASE_URL = "https://api.kie.ai"
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 300
 
+# KIE's result CDN (tempfile.aiquickdraw.com) sits behind Cloudflare, which 403s
+# the default `Python-urllib/x.y` User-Agent. A browser-like UA is required on
+# every request — the API host rejects it too under some edge configs.
+_USER_AGENT = "Mozilla/5.0 (compatible; OpenMontage/1.0)"
+
 # KIE's own state vocabulary. Anything not terminal means "keep waiting".
 TERMINAL_SUCCESS = {"success", "SUCCESS"}
 TERMINAL_FAILURE = {"fail", "FAIL", "failed", "GENERATE_FAILED", "CREATE_TASK_FAILED"}
@@ -119,7 +124,11 @@ class KieImage(BaseTool):
             f"{BASE_URL}{path}",
             data=data,
             method=method,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "User-Agent": _USER_AGENT,
+            },
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
             body = json.loads(resp.read())
@@ -184,7 +193,8 @@ class KieImage(BaseTool):
             ext = inputs.get("output_format", "png")
             output_path = Path(inputs.get("output_path", f"kie_image.{ext}"))
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with urllib.request.urlopen(urls[0], timeout=120) as resp:
+            dl = urllib.request.Request(urls[0], headers={"User-Agent": _USER_AGENT})
+            with urllib.request.urlopen(dl, timeout=120) as resp:
                 output_path.write_bytes(resp.read())
         except Exception as exc:  # noqa: BLE001 — surface any provider failure to the agent
             return ToolResult(success=False, error=f"KIE image generation failed: {exc}")
