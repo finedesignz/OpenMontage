@@ -1370,7 +1370,19 @@ class VideoCompose(BaseTool):
             # local remotion binary via node_modules/.bin. Without this,
             # Windows npx cannot locate the CLI and returns "could not
             # determine executable to run".
-            self.run_command(cmd, timeout=600, cwd=composer_dir)
+            # Long-form renders (a multi-minute screen walkthrough with a video track
+            # is the common case) blow past a fixed 10-minute cap. When that happened
+            # the wait was abandoned but the npx child kept rendering ORPHANED, and
+            # eventually wrote a stale mp4 over the output path — which reads exactly
+            # like a successful render of the wrong length. Make it caller-tunable and
+            # scale the default with the composition's own duration.
+            render_timeout = inputs.get("render_timeout")
+            if not render_timeout:
+                comp_seconds = max(
+                    (c.get("out_seconds") or 0) for c in (props.get("cuts") or [{}])
+                ) or 0
+                render_timeout = max(600, int(comp_seconds * 12) + 300)
+            self.run_command(cmd, timeout=int(render_timeout), cwd=composer_dir)
         except Exception as e:
             return ToolResult(success=False, error=f"Remotion render failed: {e}")
         finally:
