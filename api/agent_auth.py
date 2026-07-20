@@ -7,7 +7,7 @@ on a machine already logged in, then pasted into the /setup page. It is
 persisted to the jobs volume so it survives redeploys and restarts, and exported
 to each agent subprocess as CLAUDE_CODE_OAUTH_TOKEN.
 
-Metered `sk-ant-...` API keys are deliberately NOT a fallback — this service
+Metered `sk-ant-...` API keys are deliberately NOT a fallback -- this service
 bills against the subscription, and a stray ANTHROPIC_API_KEY in the environment
 would silently start charging per token. The runner strips it.
 """
@@ -51,7 +51,7 @@ class AgentAuthStore:
         if not token.startswith(TOKEN_PREFIX):
             raise ValueError(
                 f"that does not look like a subscription token (expected it to start "
-                f"with '{TOKEN_PREFIX}') — generate one with `claude setup-token`"
+                f"with '{TOKEN_PREFIX}') - generate one with `claude setup-token`"
             )
         payload = {"oauth_token": token, "updated_at": _now()}
         tmp = self._path.with_suffix(".tmp")

@@ -18,7 +18,9 @@ so the MCP wrapper is a thin pass-through:
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -35,6 +37,7 @@ from .models import (
     JobList,
     JobRecord,
     JobResult,
+    JobStatus,
     LoginRequest,
     PipelineInfo,
     SetTokenRequest,
@@ -110,9 +113,20 @@ def create_app() -> FastAPI:
         if not settings.operator_auth_enabled:
             return
         origin = request.headers.get("origin")
+        # Missing Origin is allowed (SameSite=Strict cookie already guards, and
+        # some non-browser clients omit it); a present Origin must match exactly.
         if origin and settings.titanium_return_url:
-            allowed = settings.titanium_return_url.split("/auth/")[0]
-            if not origin.rstrip("/").startswith(allowed.rstrip("/")):
+            allowed = urlsplit(settings.titanium_return_url.split("/auth/")[0])
+            # A malformed Origin (e.g. an invalid IPv6 authority) makes urlsplit
+            # raise ValueError; treat an unparseable Origin as a refused one, not
+            # a 500.
+            try:
+                got = urlsplit(origin)
+            except ValueError:
+                raise HTTPException(403, "cross-origin request refused")
+            # Exact origin match (scheme+host+port), not a prefix - a prefix
+            # match lets host.evil.com pass when allowed is host.
+            if (got.scheme, got.netloc) != (allowed.scheme, allowed.netloc):
                 raise HTTPException(403, "cross-origin request refused")
 
     def _status() -> AgentAuthStatus:
@@ -201,7 +215,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 400,
                 f"that does not look like a subscription token (expected it to start with "
-                f"'{TOKEN_PREFIX}') — generate one with `claude setup-token`",
+                f"'{TOKEN_PREFIX}') - generate one with `claude setup-token`",
             )
         # Prove the token works before persisting it, so a bad paste fails here
         # rather than silently breaking every future job.
@@ -216,11 +230,12 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/auth/verify", tags=["auth"])
     async def verify_agent_token(request: Request) -> dict:
-        """Re-check the stored token against Anthropic — is the agent still connected?"""
+        """Re-check the stored token against Anthropic - is the agent still connected?"""
         _require_operator(request)
+        _check_origin(request)
         auth = auth_store.load()
         if not auth.configured:
-            raise HTTPException(409, "no token stored — paste one at /setup")
+            raise HTTPException(409, "no token stored - paste one at /setup")
         ok, detail = await asyncio.to_thread(
             verify_token, settings.claude_bin, auth.env["CLAUDE_CODE_OAUTH_TOKEN"]
         )
@@ -246,6 +261,11 @@ def create_app() -> FastAPI:
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> JobList:
+        if status is not None and status not in {s.value for s in JobStatus}:
+            raise HTTPException(
+                422,
+                "invalid status filter; expected one of: queued|running|completed|failed|cancelled",
+            )
         jm: JobManager = app.state.jobs
         records, total = jm.list(status, limit, offset)
         return JobList(jobs=records, total=total)
@@ -261,7 +281,7 @@ def create_app() -> FastAPI:
     @app.get("/v1/jobs/{job_id}/result", response_model=JobResult, tags=["jobs"], dependencies=[Depends(require_api_key)])
     async def get_result(job_id: str) -> JobResult:
         jm: JobManager = app.state.jobs
-        res = jm.result(job_id)
+        res = await asyncio.to_thread(jm.result, job_id)
         if not res:
             raise HTTPException(404, "job not found")
         return res
@@ -269,19 +289,24 @@ def create_app() -> FastAPI:
     @app.get("/v1/jobs/{job_id}/artifacts/{name}", tags=["jobs"], dependencies=[Depends(require_api_key)])
     async def download_artifact(job_id: str, name: str) -> FileResponse:
         jm: JobManager = app.state.jobs
-        res = jm.result(job_id)
+        res = await asyncio.to_thread(jm.result, job_id)
         if not res:
             raise HTTPException(404, "job not found")
         match = next((a for a in res.artifacts if a.name == name), None)
         if not match:
             raise HTTPException(404, "artifact not found")
-        abs_path = (settings.repo_root / match.path).resolve()
-        # Defence in depth: never serve outside the repo's projects tree.
-        if not str(abs_path).startswith(str(settings.projects_dir.resolve())):
+        projects_dir = settings.projects_dir.resolve()
+        abs_path = settings.repo_root / match.path
+        real = abs_path.resolve()
+        # Defence in depth: never serve outside the repo's projects tree, and
+        # reject symlinked artifacts that could redirect outside it. Use
+        # is_relative_to (not str prefix) so a sibling like projects-secret
+        # sharing the prefix cannot pass.
+        if not real.is_relative_to(projects_dir) or abs_path.is_symlink():
             raise HTTPException(403, "forbidden path")
-        if not abs_path.exists():
+        if not real.exists():
             raise HTTPException(410, "artifact no longer on disk")
-        return FileResponse(str(abs_path), filename=name)
+        return FileResponse(str(real), filename=name)
 
     @app.post("/v1/jobs/{job_id}/cancel", response_model=JobRecord, tags=["jobs"], dependencies=[Depends(require_api_key)])
     async def cancel_job(job_id: str) -> JobRecord:
@@ -320,8 +345,9 @@ def create_app() -> FastAPI:
 
         try:
             return await asyncio.to_thread(_probe)
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(503, f"capability probe failed: {exc}")
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("capability probe failed")
+            raise HTTPException(503, "capability probe failed")
 
     return app
 

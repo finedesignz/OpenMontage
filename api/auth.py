@@ -25,8 +25,16 @@ def _key_accepted(presented: str, configured: list[str]) -> bool:
     # membership test, which short-circuits on the first differing byte).
     accepted = False
     for key in configured:
-        if hmac.compare_digest(presented, key):
-            accepted = True
+        # A non-ASCII presented key (Starlette decodes headers as latin-1, so a
+        # hostile `X-API-Key: \xff` yields a non-ASCII str) makes compare_digest
+        # raise TypeError. Such a key can never equal a configured key, so treat
+        # the TypeError as a non-match — this keeps the 401 contract (not 500)
+        # while preserving the loop-over-all-keys constant-time property.
+        try:
+            if hmac.compare_digest(presented, key):
+                accepted = True
+        except TypeError:
+            pass
     return accepted
 
 

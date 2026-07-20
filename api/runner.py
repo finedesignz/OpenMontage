@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import signal
+import subprocess
 from collections.abc import Callable
 
 from .agent_auth import AgentAuthStore
@@ -96,7 +97,7 @@ class AgentRun:
         auth = AgentAuthStore(self._s.jobs_dir).load()
         if not auth.configured:
             raise RuntimeError(
-                "no agent credentials configured — paste a Claude subscription token at "
+                "no agent credentials configured - paste a Claude subscription token at "
                 "/setup (generate it with `claude setup-token`)"
             )
         # The agent runs on the subscription, never on a metered key. A stray
@@ -108,12 +109,23 @@ class AgentRun:
         env.pop("ANTHROPIC_AUTH_TOKEN", None)
         env.update(auth.env)
 
+        # Spawn the agent in its OWN process group / session so the whole tree
+        # (claude -> node/Remotion -> ffmpeg) can be signalled together on
+        # timeout/cancel. Without this, render grandchildren orphan and keep
+        # burning CPU/GPU and provider spend after the job is marked failed.
+        spawn_kwargs: dict = {}
+        if os.name == "nt":
+            spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            spawn_kwargs["start_new_session"] = True
+
         self._proc = await asyncio.create_subprocess_exec(
             *argv,
             cwd=str(self._s.repo_root),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            **spawn_kwargs,
         )
 
         try:
@@ -144,14 +156,22 @@ class AgentRun:
         if self._proc and self._proc.returncode is None:
             try:
                 if os.name == "nt":
+                    # Windows: CREATE_NEW_PROCESS_GROUP + terminate() is the best
+                    # available without extra deps; the whole-tree reaping
+                    # guarantee below is POSIX-only (and Linux is the prod target).
                     self._proc.terminate()
                 else:
-                    self._proc.send_signal(signal.SIGTERM)
+                    # POSIX: signal the entire process group (leader == our child)
+                    # so render grandchildren die with the agent.
+                    os.killpg(os.getpgid(self._proc.pid), signal.SIGTERM)
                 await asyncio.wait_for(self._proc.wait(), timeout=10)
-            except (asyncio.TimeoutError, ProcessLookupError):
+            except (asyncio.TimeoutError, ProcessLookupError, OSError):
                 try:
-                    self._proc.kill()
-                except ProcessLookupError:
+                    if os.name == "nt":
+                        self._proc.kill()
+                    else:
+                        os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, OSError):
                     pass
 
     async def _pump_stdout(self) -> None:
