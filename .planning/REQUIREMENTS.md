@@ -67,6 +67,21 @@ Source analysis: `scratchpad/hyperframes-review.md`.
 
 ## Traceability
 
-| Requirement | Phase |
-|-------------|-------|
-| (filled by roadmap) | |
+Phase dirs/labels are milestone-scoped: `HF-NN-slug` (e.g. `HF-01-local-tts`).
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| DOCTRINE-01 | Phase 2 (HF-02) | Pending |
+| DOCTRINE-02 | Phase 2 (HF-02) | Pending |
+| TTS-01 | Phase 1 (HF-01) | Pending |
+| TTS-02 | Phase 1 (HF-01) | Pending |
+| TTS-03 | Phase 1 (HF-01) | Pending |
+| STORY-01 | Phase 3 (HF-03) | Pending |
+| STORY-02 | Phase 3 (HF-03) | Pending |
+| STORY-03 | Phase 3 (HF-03) | Pending |
+| BRAND-01 | Phase 4 (HF-04) | Pending |
+| BRAND-02 | Phase 4 (HF-04) | Pending |
+| EDITGATE-01 | Phase 5 (HF-05) | Pending |
+| EDITGATE-02 | Phase 5 (HF-05) | Pending |
+
+Coverage: 12/12 requirements mapped, no orphans.
