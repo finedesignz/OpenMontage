@@ -108,6 +108,30 @@ $("go").addEventListener("click", async () => {
 """.replace("%STYLE%", _STYLE)
 
 
+# --- Setup-unavailable view (Titanium not wired) ----------------------------
+
+SETUP_UNAVAILABLE_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenMontage · Setup unavailable</title>
+<style>%STYLE%</style>
+</head>
+<body>
+<main>
+  <h1>Setup is not available yet</h1>
+  <p class="sub">Operator sign-in runs through Titanium Licensing, which is not wired on this deployment.</p>
+  <div class="card">
+    <p class="hint">Set <code>TITANIUM_APP_ID</code> and <code>TITANIUM_RETURN_URL</code> in the
+    deployment environment, then redeploy. Once the portal is wired, this page becomes the
+    magic-link sign-in for authorizing the agent.</p>
+  </div>
+</main>
+</body>
+</html>""".replace("%STYLE%", _STYLE)
+
+
 # --- Token / authorize-agent view -------------------------------------------
 
 _SETUP_TEMPLATE = """<!doctype html>
