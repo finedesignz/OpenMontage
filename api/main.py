@@ -49,7 +49,7 @@ from .session import (
     PortalError,
     SessionManager,
 )
-from .setup_page import LOGIN_HTML, render_setup
+from .setup_page import LOGIN_HTML, SETUP_UNAVAILABLE_HTML, render_setup
 
 API_VERSION = "0.1.0"
 
@@ -97,13 +97,23 @@ def create_app() -> FastAPI:
     portal = PortalClient(settings)
 
     def _require_operator(request: Request) -> None:
-        """Gate operator actions: a valid session, or (fallback) the API key."""
-        if settings.operator_auth_enabled:
-            sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
-            if sess:
-                return
-        # Machine callers (and the pre-login rollout window) use the API key.
-        require_api_key(request.headers.get("x-api-key"), request.headers.get("authorization"))
+        """Gate operator actions on a valid Titanium session.
+
+        Operator auth is Titanium magic-link only. Until the portal is wired the
+        operator surface (/setup + agent-credential mutations) is unavailable
+        rather than falling back to the machine API key: a browser cannot present
+        that key, and accepting it here would let ANY machine-key holder act as
+        the operator. Wire TITANIUM_APP_ID/TITANIUM_RETURN_URL to enable it.
+        """
+        if not settings.operator_auth_enabled:
+            raise HTTPException(
+                503,
+                "operator login is not configured on this deployment; wire Titanium "
+                "(TITANIUM_APP_ID + TITANIUM_RETURN_URL) to enable /setup",
+            )
+        sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
+        if not sess:
+            raise HTTPException(401, "operator session required - sign in at /setup")
 
     def _check_origin(request: Request) -> None:
         # CSRF defence for cookie-authenticated mutations: the session cookie is
@@ -181,15 +191,15 @@ def create_app() -> FastAPI:
 
     @app.get("/setup", response_class=HTMLResponse, include_in_schema=False)
     async def setup_page(request: Request) -> HTMLResponse:
-        # Show the login view until the operator has a session; the token view
-        # after. When operator auth is not wired, the token view is shown
-        # directly (the API-key fallback guards the mutation).
-        if settings.operator_auth_enabled:
-            sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
-            if not sess:
-                return HTMLResponse(LOGIN_HTML)
-            return HTMLResponse(render_setup(sess.email))
-        return HTMLResponse(render_setup(None))
+        # Operator auth is Titanium-only. Until the portal is wired, /setup is
+        # unavailable rather than exposing the token form behind a machine-key
+        # fallback a browser cannot satisfy.
+        if not settings.operator_auth_enabled:
+            return HTMLResponse(SETUP_UNAVAILABLE_HTML, status_code=503)
+        sess = session_mgr.verify(request.cookies.get(COOKIE_NAME))
+        if not sess:
+            return HTMLResponse(LOGIN_HTML)
+        return HTMLResponse(render_setup(sess.email))
 
     @app.get("/v1/auth/session", tags=["auth"], include_in_schema=False)
     async def auth_session(request: Request) -> dict:
