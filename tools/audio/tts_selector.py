@@ -1,8 +1,34 @@
 """Capability-level text-to-speech selector that chooses among provider tools.
 
-Provider discovery is automatic — any BaseTool with capability="tts"
+Provider discovery is automatic -- any BaseTool with capability="tts"
 is picked up from the registry.  Adding a new TTS provider requires only creating
 the tool file in tools/audio/; no changes to this selector are needed.
+
+Fallback precedence (D-06)
+--------------------------
+On the auto path the selector prefers, in order:
+
+    ElevenLabs  ->  Kokoro  ->  Piper
+
+- ElevenLabs (paid) when its key is set and a specific voice/clone is requested;
+  it outranks the free providers on output quality for quality intents.
+- Kokoro (free, offline, multilingual, higher measured quality) via its
+  quality_score=0.7 lever, which deterministically outranks Piper on the free path
+  (no scoring-engine edit).
+- Piper (free, offline) as the last resort.
+
+This ordering emerges from the weighted score, not a hardcoded list; a new
+provider slots in by its own score.
+
+No silent downgrade (D-05)
+--------------------------
+When preferred_provider names a KNOWN provider that is currently UNAVAILABLE
+(e.g. "elevenlabs" with no key -- a requested paid voice), the selector does NOT
+quietly substitute a free provider. execute() returns success=False with a
+message naming the provider and stating it is not downgrading, so a run that
+asked for a specific voice is never silently swapped. Only an UNKNOWN preferred
+name falls through to the free auto ranking. voice_id is a generic pass-through
+(kokoro/piper rely on it) and is not treated as an implicit ElevenLabs request.
 """
 
 from __future__ import annotations
