@@ -35,7 +35,10 @@ platform.
   2. `tts_selector` lists `kokoro_tts` with cost=0 / offline status and an `agent_skills[]` bridge to a `.agents/skills` engine reference
   3. When ElevenLabs is unavailable the selector falls back to Kokoro/Piper and produces narration with no paid/dead-key call
   4. A run that requested a specific ElevenLabs voice does NOT silently degrade — the documented precedence surfaces the substitution
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 01-01-PLAN.md — Tracer: kokoro_tts provider + one-time deps/model download + offline synthesis smoke (Wave 1)
+- [ ] 01-02-PLAN.md — Selector no-silent-downgrade fix + documented ElevenLabs→Kokoro→Piper precedence (Wave 2)
+- [ ] 01-03-PLAN.md — Multilingual 54-voice/8-language breadth + `.agents/skills/kokoro` engine bridge (Wave 2)
 
 ### Phase 2: Motion Doctrine
 **Goal**: The agent consults hyperframes' motion "11 Laws" during scene_plan / edit for motion-led pipelines.
@@ -84,7 +87,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local TTS (Kokoro) | 0/TBD | Not started | - |
+| 1. Local TTS (Kokoro) | 0/3 | Not started | - |
 | 2. Motion Doctrine | 0/TBD | Not started | - |
 | 3. Storyboard Convention | 0/TBD | Not started | - |
 | 4. Brand Lock | 0/TBD | Not started | - |
