@@ -35,6 +35,37 @@ from tools.base_tool import (
 _ONNX_FILE = "kokoro-v1.0.onnx"
 _VOICES_FILE = "voices-v1.0.bin"
 
+# Voice-prefix -> espeak lang string. A2-verified this session against the
+# installed kokoro-onnx get_voices() (54 voices / 17 prefixes) AND by calling
+# create() with each string (all 9 accepted, all non-silent) -- zero drift from
+# 01-RESEARCH.md's map. 17 prefixes -> 9 espeak strings -> 8 languages
+# (American af/am and British bf/bm English share the "English" language but use
+# distinct espeak strings en-us/en-gb). D-02: multilingual is the field that
+# differs from Piper; deriving lang from the prefix lets multilingual voices work
+# without the caller knowing espeak strings.
+_PREFIX_LANG = {
+    "af": "en-us", "am": "en-us",   # American English
+    "bf": "en-gb", "bm": "en-gb",   # British English
+    "ef": "es", "em": "es",         # Spanish
+    "ff": "fr-fr",                  # French
+    "hf": "hi", "hm": "hi",         # Hindi
+    "if": "it", "im": "it",         # Italian
+    "jf": "ja", "jm": "ja",         # Japanese
+    "pf": "pt-br", "pm": "pt-br",   # Brazilian Portuguese
+    "zf": "cmn", "zm": "cmn",       # Mandarin Chinese
+}
+_DEFAULT_LANG = "en-us"
+
+
+def _lang_for_voice(voice: str) -> str:
+    """Derive the espeak lang from a Kokoro voice's 2-char prefix.
+
+    Falls back to en-us for an unknown prefix (wrong string only degrades
+    phonemization for a non-English voice; never fatal).
+    """
+    prefix = voice.split("_", 1)[0] if "_" in voice else voice[:2]
+    return _PREFIX_LANG.get(prefix, _DEFAULT_LANG)
+
 # Module-level Kokoro engine singletons keyed by resolved model dir. The ONNX
 # graph takes seconds to load; re-instantiating per call is wasteful
 # (RESEARCH pitfall 3).
@@ -116,7 +147,14 @@ class KokoroTTS(BaseTool):
             "text": {"type": "string"},
             "voice": {"type": "string", "default": "af_heart"},
             "speed": {"type": "number", "default": 1.0},
-            "lang": {"type": "string", "default": "en-us"},
+            "lang": {
+                "type": "string",
+                "description": (
+                    "espeak lang string. Omit to auto-derive from the voice "
+                    "prefix (e.g. ff_ -> fr-fr, zf_ -> cmn); an explicit value "
+                    "always overrides."
+                ),
+            },
             "output_path": {"type": "string"},
         },
     }
@@ -170,8 +208,11 @@ class KokoroTTS(BaseTool):
         # Accept the selector's generic voice_id pass-through (A3).
         voice = inputs.get("voice") or inputs.get("voice_id") or "af_heart"
         speed = float(inputs.get("speed", 1.0))
-        # Tracer keeps lang caller-supplied/default; voice-prefix derivation is plan 01-03.
-        lang = inputs.get("lang", "en-us")
+        # An explicit lang always wins; otherwise derive the espeak lang from the
+        # voice prefix so multilingual voices synthesize correctly without the
+        # caller supplying an espeak string (D-02, plan 01-03).
+        explicit_lang = inputs.get("lang")
+        lang = explicit_lang if explicit_lang else _lang_for_voice(voice)
 
         output_path = Path(inputs.get("output_path", "tts_output.wav"))
         output_path.parent.mkdir(parents=True, exist_ok=True)
