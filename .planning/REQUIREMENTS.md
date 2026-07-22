@@ -22,10 +22,10 @@ Source analysis: `scratchpad/hyperframes-review.md`.
 
 ### Local TTS (TTS)
 
-- [ ] **TTS-01**: Add a `kokoro_tts` provider tool (BaseTool/ToolContract, mirroring
+- [x] **TTS-01**: Add a `kokoro_tts` provider tool (BaseTool/ToolContract, mirroring
   `piper_tts`) exposing Kokoro-82M offline synthesis (54 voices, 8 languages).
 
-- [ ] **TTS-02**: Register `kokoro_tts` in `tts_selector` with cost=0 / offline status and
+- [x] **TTS-02**: Register `kokoro_tts` in `tts_selector` with cost=0 / offline status and
   an `agent_skills[]` bridge to a `.agents/skills` reference for the engine.
 
 - [x] **TTS-03**: Define and document the selector's fallback precedence so a pipeline
@@ -87,8 +87,8 @@ Phase dirs/labels are milestone-scoped: `HF-NN-slug` (e.g. `HF-01-local-tts`).
 |-------------|-------|--------|
 | DOCTRINE-01 | Phase 2 (HF-02) | Pending |
 | DOCTRINE-02 | Phase 2 (HF-02) | Pending |
-| TTS-01 | Phase 1 (HF-01) | Pending |
-| TTS-02 | Phase 1 (HF-01) | Pending |
+| TTS-01 | Phase 1 (HF-01) | Complete |
+| TTS-02 | Phase 1 (HF-01) | Complete |
 | TTS-03 | Phase 1 (HF-01) | Complete |
 | STORY-01 | Phase 3 (HF-03) | Pending |
 | STORY-02 | Phase 3 (HF-03) | Pending |

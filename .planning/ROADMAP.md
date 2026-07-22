@@ -19,7 +19,7 @@ platform.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Local TTS (Kokoro)** - Free offline `kokoro_tts` provider under `tts_selector` with documented fallback precedence
+- [x] **Phase 1: Local TTS (Kokoro)** - Free offline `kokoro_tts` provider under `tts_selector` with documented fallback precedence (completed 2026-07-22)
 - [ ] **Phase 2: Motion Doctrine** - "11 Laws" meta skill wired into stage directors / playbook for motion-led pipelines
 - [ ] **Phase 3: Storyboard Convention** - Per-project `STORYBOARD.md` + `meta.json` with a beat-timeline approval gate
 - [ ] **Phase 4: Brand Lock** - Brand-locked DESIGN contract + style-philosophy override layered on style playbooks
@@ -104,7 +104,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local TTS (Kokoro) | 3/3 | In Progress|  |
+| 1. Local TTS (Kokoro) | 3/3 | Complete    | 2026-07-22 |
 | 2. Motion Doctrine | 0/TBD | Not started | - |
 | 3. Storyboard Convention | 0/TBD | Not started | - |
 | 4. Brand Lock | 0/TBD | Not started | - |
