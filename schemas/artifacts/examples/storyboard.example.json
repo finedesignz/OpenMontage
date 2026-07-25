@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "total_seconds": 12.0,
+  "music_bed": "assets/music/bed.mp3",
+  "beats": [
+    {
+      "id": "beat_01",
+      "start_seconds": 0.0,
+      "duration_seconds": 4.0,
+      "on_screen": "Logo bumper over navy background",
+      "vo": "New Life Chiropractic. Long Branch, New Jersey.",
+      "sfx": [
+        { "at_seconds": 0.2, "cue": "soft_whoosh" }
+      ],
+      "music": [
+        { "at_seconds": 0.0, "level_db": -6.0, "reason": "intro at nominal bed level" }
+      ]
+    },
+    {
+      "id": "beat_02",
+      "start_seconds": 4.0,
+      "duration_seconds": 5.0,
+      "on_screen": "Dr. Tyler Richards adjusting a patient",
+      "vo": "Real relief from back pain starts with real care.",
+      "sfx": [],
+      "music": [
+        { "at_seconds": 0.0, "level_db": -18.0, "reason": "duck under VO onset" }
+      ]
+    },
+    {
+      "id": "beat_03",
+      "start_seconds": 9.0,
+      "duration_seconds": 3.0,
+      "on_screen": "New Patient Special card with phone number",
+      "vo": "Call today. New patient special, forty-seven dollars.",
+      "music": [
+        { "at_seconds": 2.5, "level_db": -6.0, "reason": "restore bed for outro" }
+      ]
+    }
+  ]
+}
