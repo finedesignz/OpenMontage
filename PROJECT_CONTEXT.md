@@ -46,7 +46,9 @@ Each tool's `agent_skills[]` field bridges Layer 1 → Layer 3. See `skills/INDE
 - **Instruction-driven stages:** Each stage has a director skill (MD) that teaches the agent HOW
 - **Pipeline manifests:** Declarative YAML defining stages, skills, tools, review focus, approval gates
 - **Capability-first tool design:** Each major family should expose a selector tool plus explicit provider tools
-  - Example: `tts_selector` + `elevenlabs_tts` / `google_tts` / `openai_tts` / `piper_tts`
+  - Example: `tts_selector` + `elevenlabs_tts` / `google_tts` / `openai_tts` / `kokoro_tts` / `piper_tts`
+    - **TTS fallback precedence:** ElevenLabs (paid; when its key is set and a specific voice/clone is requested) -> Kokoro (free, offline, multilingual, higher quality; `quality_score=0.7` lever) -> Piper (free, offline, last resort). Free-path narration runs with zero paid/dead-key dependency.
+    - **No silent downgrade:** an explicitly requested-but-unavailable provider (e.g. `preferred_provider='elevenlabs'` with no key) returns `success=False` naming the provider and does NOT quietly swap in a free voice; only an unknown preferred name auto-ranks. Pipelines rely on this documented contract, not implicit behavior.
   - Example: `video_selector` + `heygen_video` / `wan_video` / `hunyuan_video` / `ltx_video_local` / `ltx_video_modal` / `cogvideo_video`
 - **Style playbooks:** YAML defining visual language, typography, motion, audio, asset generation constraints
 - **Artifacts are canonical:** `brief`, `script`, `scene_plan`, `asset_manifest`, `edit_decisions`, `render_report`, `publish_log`

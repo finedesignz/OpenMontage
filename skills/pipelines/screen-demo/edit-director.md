@@ -57,6 +57,22 @@ Use `cuts[]` for actual source segments and speed changes. Use `overlays[]`, `su
 - only use background music if it adds value and survives ducking gracefully,
 - if narration was generated, ensure it fits the tightened timeline.
 
+### 5b. Consult The Motion Doctrine
+
+The overlay and edit pass is motion. Consult `skills/meta/motion-doctrine.md` while
+setting eased scrolls, cursor moves, and pacing - read its core and reference, do not
+copy it here. Screen demos favor restraint, so lean on the pacing and easing sections
+rather than the high-energy transition moves. What bites here:
+
+- **Velocity match at the seam** (easing reference) - when an eased scroll settles into
+  a hold, or a faux-cursor move arrives at its target, tune the curve so it does not
+  visibly brake. A velocity discontinuity reads as a stall.
+- **One idea per beat, cut fast** (Law 1) - accelerate or cut typing, installs, and
+  waits; keep result moments at normal speed. Do not over-edit.
+- **The camera never sleeps** (Law 4) - eased scroll and gentle crop motion keep an
+  otherwise static screen alive, but do not add more motion than the scene plan asked
+  for.
+
 ### 6. Quality Gate
 
 **Timeline integrity:**

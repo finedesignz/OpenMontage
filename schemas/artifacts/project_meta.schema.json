@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/project_meta",
+  "title": "Project Meta",
+  "description": "Project-level audio and render settings for a single project. Lives at projects/<name>/meta.json and captures the defaults every stage inherits: frame rate, resolution, TTS voice, music bed, and room-tone floor.",
+  "type": "object",
+  "required": ["version", "fps", "resolution", "tts"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "fps": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Frame rate of the final render."
+    },
+    "resolution": {
+      "type": "object",
+      "description": "Output pixel dimensions.",
+      "required": ["w", "h"],
+      "properties": {
+        "w": { "type": "integer", "minimum": 1 },
+        "h": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "aspect": {
+      "type": "string",
+      "description": "Target aspect ratio label (e.g. 16:9, 9:16, 1:1)."
+    },
+    "tts": {
+      "type": "object",
+      "description": "Text-to-speech voice defaults for narration.",
+      "required": ["provider", "voice_id"],
+      "properties": {
+        "provider": { "type": "string", "description": "TTS provider (e.g. elevenlabs, kokoro, doubao)." },
+        "voice_id": { "type": "string", "description": "Provider-specific voice identifier." }
+      },
+      "additionalProperties": false
+    },
+    "music_bed": {
+      "type": "string",
+      "description": "Default background music bed path or asset-manifest ID."
+    },
+    "room_tone_dbfs": {
+      "type": "number",
+      "description": "Room-tone / ambient noise floor in dBFS used when mixing narration."
+    },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": false
+}

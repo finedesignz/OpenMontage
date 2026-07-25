@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "fps": 30,
+  "resolution": { "w": 1920, "h": 1080 },
+  "aspect": "16:9",
+  "tts": {
+    "provider": "elevenlabs",
+    "voice_id": "EXAVITQu4vr4xnSDxMaL"
+  },
+  "music_bed": "assets/music/bed.mp3",
+  "room_tone_dbfs": -60.0
+}

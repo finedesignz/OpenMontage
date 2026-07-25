@@ -8,6 +8,7 @@ and accessibility validation (D3.5.5, D3.5.6, D3.5.7).
 from __future__ import annotations
 
 import colorsys
+import copy
 import json
 import math
 from pathlib import Path
@@ -17,6 +18,7 @@ import yaml
 import jsonschema
 
 STYLES_DIR = Path(__file__).resolve().parent
+PHILOSOPHIES_DIR = STYLES_DIR / "philosophies"
 SCHEMA_PATH = (
     Path(__file__).resolve().parent.parent
     / "schemas"
@@ -66,6 +68,123 @@ def list_playbooks(styles_dir: Optional[Path] = None) -> list[str]:
         for p in styles_dir.glob("*.yaml")
         if p.stem != "__pycache__"
     ]
+
+
+# ---------------------------------------------------------------------------
+# Brand lock + style-philosophy override (BRAND-01 / BRAND-02)
+# ---------------------------------------------------------------------------
+
+# The "look" a style philosophy is allowed to swap. Anything the brand locks
+# (palette + typography/logo named under brand_lock) is deliberately absent.
+_OVERLAY_META_KEYS = frozenset({"philosophy", "name", "description", "source"})
+_OVERLAY_LOOK_TOP_KEYS = frozenset({"motion", "pace"})
+_OVERLAY_LOOK_VL_KEYS = frozenset({"composition", "texture"})
+
+
+def load_philosophy(name: str, philosophies_dir: Optional[Path] = None) -> dict[str, Any]:
+    """Load a style-philosophy overlay by name from styles/philosophies/.
+
+    An overlay is a thin partial-playbook describing only LOOK sections
+    (``motion``, ``visual_language.composition``/``texture``, ``pace``). It is
+    NOT a full playbook and is not schema-validated on load; validation happens
+    on the merged result via :func:`apply_philosophy`.
+
+    Args:
+        name: Overlay name (without .yaml extension).
+        philosophies_dir: Override directory for overlay files.
+
+    Returns:
+        Overlay dict.
+    """
+    philosophies_dir = philosophies_dir or PHILOSOPHIES_DIR
+    path = philosophies_dir / f"{name}.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Style philosophy not found: {path}")
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def apply_philosophy(base: dict, overlay: dict) -> dict[str, Any]:
+    """Merge a style-philosophy ``overlay`` onto a brand-locked ``base`` playbook.
+
+    A style philosophy (e.g. minimalist / soft / brutalist) swaps only the LOOK
+    of a video while the brand's locked identity always wins:
+
+      * The overlay REPLACES the look sections it provides -- ``motion``
+        (whole block, incl. pacing_rules), ``visual_language.composition``,
+        ``visual_language.texture``, and the top-level ``pace`` (mapped onto
+        ``identity.pace``).
+      * Everything under ``brand_lock`` and the locked palette / typography it
+        names is preserved byte-identical from ``base``.
+      * An overlay that attempts to change a locked field (``brand_lock``, the
+        color palette, typography, or any non-look section) is REJECTED with a
+        clear ``ValueError`` -- the safe behavior (never silently drop a brand
+        override attempt). See CONTEXT D-02.
+
+    The merged result is re-validated against the playbook schema before it is
+    returned. Neither ``base`` nor ``overlay`` is mutated.
+
+    Args:
+        base: A loaded playbook dict (typically carrying a ``brand_lock`` block).
+        overlay: A style-philosophy overlay (see :func:`load_philosophy`).
+
+    Returns:
+        A new schema-valid playbook dict with the look swapped and the brand
+        identity preserved.
+
+    Raises:
+        TypeError: if ``overlay`` is not a dict.
+        ValueError: if the overlay attempts to override a locked brand field.
+    """
+    if not isinstance(overlay, dict):
+        raise TypeError(f"overlay must be a dict, got {type(overlay).__name__}")
+
+    result = copy.deepcopy(base)
+
+    # Hard reject: an overlay may never carry the lock itself.
+    if "brand_lock" in overlay:
+        raise ValueError(
+            "Style-philosophy overlay may not set 'brand_lock' -- the brand "
+            "identity is locked and cannot be overridden by a philosophy."
+        )
+
+    for key, value in overlay.items():
+        if key in _OVERLAY_META_KEYS:
+            continue
+
+        if key == "motion":
+            result["motion"] = copy.deepcopy(value)
+
+        elif key == "pace":
+            result.setdefault("identity", {})["pace"] = value
+
+        elif key == "visual_language":
+            if not isinstance(value, dict):
+                raise ValueError(
+                    "Overlay 'visual_language' must be a mapping of look fields "
+                    f"({sorted(_OVERLAY_LOOK_VL_KEYS)}), got {type(value).__name__}"
+                )
+            for vk, vv in value.items():
+                if vk not in _OVERLAY_LOOK_VL_KEYS:
+                    raise ValueError(
+                        f"Style-philosophy overlay cannot change locked field "
+                        f"'visual_language.{vk}'. An overlay may only set look "
+                        f"fields {sorted(_OVERLAY_LOOK_VL_KEYS)} under "
+                        f"visual_language; the color palette is brand-locked."
+                    )
+                result.setdefault("visual_language", {})[vk] = copy.deepcopy(vv)
+
+        else:
+            raise ValueError(
+                f"Style-philosophy overlay cannot change locked field '{key}'. "
+                f"An overlay may only set look sections: "
+                f"{sorted(_OVERLAY_LOOK_TOP_KEYS)} and "
+                f"visual_language.{{{','.join(sorted(_OVERLAY_LOOK_VL_KEYS))}}}. "
+                f"Palette, typography, and brand_lock are locked."
+            )
+
+    validate_playbook(result)
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -408,6 +408,45 @@ Style playbooks in `styles/` define visual language for pipelines:
 
 Loaded by `styles/playbook_loader.py`. Each pipeline declares `compatible_playbooks` in its manifest. Validated against `schemas/styles/playbook.schema.json`.
 
+### Brand lock + style-philosophy overrides
+
+A playbook may carry an OPTIONAL `brand_lock` block (BRAND-01): the brand-derived,
+non-overridable identity -- a locked `palette` (primary/accent/background/text) plus
+optional `typography`, `logo`, and `source`. The block is backward-compatible: playbooks
+without it validate unchanged, and `brand_lock` is not in the schema's top-level
+`required` list.
+
+The lock covers palette + type/logo only. Motion vocabulary is deliberately left free so
+one locked brand can be expressed through many different "style philosophies" (minimalist,
+soft, brutalist, ...). A philosophy is a thin overlay in `styles/philosophies/*.yaml`
+describing ONLY the look: `motion`, `visual_language.composition`,
+`visual_language.texture`, and `pace`.
+
+`apply_philosophy(base, overlay)` (BRAND-02) merges an overlay onto a base playbook:
+
+- the overlay REPLACES the look sections it provides (motion / composition / texture / pace);
+- everything under `brand_lock` and the locked palette/typography it names is preserved
+  byte-identical;
+- an overlay that tries to set a locked field (the color palette, typography, or a
+  `brand_lock` block) is REJECTED with a clear error -- never silently dropped;
+- the merged result is re-validated against the schema before it is returned.
+
+This keeps the brand's colors constant while the motion language varies -- the counterpart
+of the Motion Doctrine's "palette is symbolic, not decorative" law (`skills/meta/motion-doctrine.md`):
+each brand color owns its meaning across every philosophy applied to the brand. A worked
+example ships as `styles/example-brand-lock.yaml` + `styles/philosophies/minimalist.yaml`.
+
+```python
+from styles.playbook_loader import load_playbook, load_philosophy, apply_philosophy
+
+merged = apply_philosophy(
+    load_playbook("example-brand-lock"),
+    load_philosophy("minimalist"),
+)
+# merged["motion"] came from the overlay; merged["brand_lock"] and the locked
+# color_palette are byte-identical to the base playbook.
+```
+
 ---
 
 ## Media Profiles

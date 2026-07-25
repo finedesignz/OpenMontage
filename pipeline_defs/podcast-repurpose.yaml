@@ -151,7 +151,7 @@ stages:
       - edit_decisions
     tools_available: []
     checkpoint_required: true
-    human_approval_default: false
+    human_approval_default: true
     review_focus:
       - Clip openings land quickly and attribution is clear
       - Quote cards and captions appear at the right moments
@@ -159,6 +159,26 @@ stages:
     success_criteria:
       - Schema-valid edit_decisions artifact
       - Edit decisions cover all planned deliverables
+    sub_stages:
+      - name: trim_filler
+        description: "Auto jump-cuts and filler removal on the raw podcast footage (silence, ums, dead air)"
+        tools_available:
+          - silence_cutter
+          - video_trimmer
+        review_focus:
+          - Filler and dead air removed without clipping real speech
+          - Clip and quote boundaries land on clean word boundaries
+      - name: approve_cut_list
+        description: "Named human gate: sign off on the cut list before any render spend"
+        human_approval_default: true
+        review_focus:
+          - The cut list (edit_decisions) is correct and complete across all deliverables
+          - No wanted content was cut and no filler was left in
+          - Approve before proceeding to compose/animate spend
+      - name: animate
+        description: "Proceed to compose/animate only after the cut list is approved"
+        review_focus:
+          - Entered only after approve_cut_list returned approved
 
   - name: compose
     skill: pipelines/podcast-repurpose/compose-director
