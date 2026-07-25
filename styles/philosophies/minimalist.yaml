@@ -1,0 +1,32 @@
+# Style-philosophy overlay: MINIMALIST (Phase HF-04, BRAND-02).
+#
+# A style philosophy swaps only the LOOK of a video -- motion vocabulary,
+# composition, texture, and pace. It NEVER carries palette, typography, or a
+# brand_lock block: those are owned by the base playbook's brand_lock and are
+# preserved byte-identical by apply_philosophy(). An overlay that tries to set
+# a locked field is rejected with a clear error.
+#
+# Merge:  from styles.playbook_loader import load_playbook, load_philosophy, apply_philosophy
+#         merged = apply_philosophy(load_playbook("example-brand-lock"),
+#                                   load_philosophy("minimalist"))
+
+philosophy: minimalist
+description: "Austere, editorial minimalism: hard cuts, extreme negative space, flat matte surfaces."
+
+pace: deliberate
+
+motion:
+  transitions: [cut, fade]
+  animation_style: "linear, no easing, austere; motion only when it carries meaning"
+  pacing_rules:
+    min_scene_hold_seconds: 4.0
+    max_scene_hold_seconds: 12
+    text_card_hold_seconds: 5.0
+    stat_card_hold_seconds: 4.0
+    transition_duration_seconds: 0.2
+  entrance: "hard cut"
+  exit: "hard cut"
+
+visual_language:
+  composition: "extreme negative space, single focal point, strict grid, one idea per frame"
+  texture: "flat, matte, zero grain, no gradients, no shadows"
