@@ -125,6 +125,7 @@ stages:
       - brief
     produces:
       - scene_plan
+      - storyboard
     required_tools: []
     optional_tools:
       - frame_sampler
