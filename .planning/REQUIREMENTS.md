@@ -11,12 +11,12 @@ Source analysis: `scratchpad/hyperframes-review.md`.
 
 ### Motion Doctrine (DOCTRINE)
 
-- [ ] **DOCTRINE-01**: Author an OM meta skill capturing hyperframes' "11 Laws" of motion
+- [x] **DOCTRINE-01**: Author an OM meta skill capturing hyperframes' "11 Laws" of motion
   (one-idea-per-beat, black-is-canvas, symbolic palette, hold-the-hero-shot, the GSAP
   no-op anchor anti-bug, etc.), OM-genericized and written for progressive disclosure
   (NOT a monolithic always-loaded doc).
 
-- [ ] **DOCTRINE-02**: Wire the doctrine into the relevant stage director skills and/or
+- [x] **DOCTRINE-02**: Wire the doctrine into the relevant stage director skills and/or
   style-playbook schema so the agent consults it during scene_plan / edit for the
   motion-led pipelines (animated-explainer, screen-demo overlay pass).
 
@@ -85,8 +85,8 @@ Phase dirs/labels are milestone-scoped: `HF-NN-slug` (e.g. `HF-01-local-tts`).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DOCTRINE-01 | Phase 2 (HF-02) | Pending |
-| DOCTRINE-02 | Phase 2 (HF-02) | Pending |
+| DOCTRINE-01 | Phase 2 (HF-02) | Complete |
+| DOCTRINE-02 | Phase 2 (HF-02) | Complete |
 | TTS-01 | Phase 1 (HF-01) | Complete |
 | TTS-02 | Phase 1 (HF-01) | Complete |
 | TTS-03 | Phase 1 (HF-01) | Complete |
