@@ -1,0 +1,116 @@
+# Worked example of a BRAND-LOCK playbook (Phase HF-04, BRAND-01).
+#
+# The brand_lock block below is the immutable, brand-derived identity: the
+# palette (and the typography it names) win over any style-philosophy overlay.
+# Motion vocabulary is deliberately NOT locked -- a philosophy overlay (see
+# styles/philosophies/*.yaml + apply_philosophy) may freely swap the look
+# (motion / composition / texture / pace) while these brand fields are
+# preserved byte-identical.
+
+identity:
+  name: "Acme Brand Lock"
+  category: motion-graphics
+  mood: confident, precise, trustworthy
+  pace: moderate
+  best_for: "Brand-consistent explainers where the palette and type are fixed by a brand guide"
+
+brand_lock:
+  locked: true
+  source: "https://acme.example/brand"
+  palette:
+    primary: ["#0B5FFF", "#0942B0"]
+    accent: ["#FF6B00", "#12B886"]
+    background: "#0E1116"
+    text: "#F4F6FB"
+    muted: "#9AA4B2"
+  typography:
+    headings: "Space Grotesk"
+    body: "Inter"
+  logo:
+    text: "ACME"
+
+visual_language:
+  color_palette:
+    primary: ["#0B5FFF", "#0942B0"]
+    accent: ["#FF6B00", "#12B886"]
+    background: "#0E1116"
+    text: "#F4F6FB"
+    muted: "#9AA4B2"
+  composition: centered, generous whitespace, strong grid alignment
+  texture: clean flat, no grain
+
+typography:
+  headings:
+    font: "Space Grotesk"
+    weight: 700
+    tracking: "-0.01em"
+  body:
+    font: "Inter"
+    weight: 400
+    line_height: 1.6
+  stat_card:
+    font: "Space Grotesk"
+    weight: 800
+    size_multiplier: 3.0
+  scale_system: "major_third"
+  weight_matrix:
+    title: 800
+    heading: 700
+    body: 400
+    caption: 400
+
+motion:
+  transitions: [fade, slide-left, dissolve]
+  animation_style: "ease-in-out, clean, no bounce"
+  pacing_rules:
+    min_scene_hold_seconds: 2.5
+    max_scene_hold_seconds: 10
+    text_card_hold_seconds: 3.5
+    stat_card_hold_seconds: 3.0
+    transition_duration_seconds: 0.4
+  entrance: "fade-up with slight scale (0.96 -> 1.0)"
+  exit: "fade-out"
+
+audio:
+  voice_style: "confident, clear, moderate pace"
+  music_mood: "modern corporate, understated"
+  music_volume: 0.08
+  sfx_style: "subtle clicks, soft whooshes on transitions"
+  ducking_threshold_db: -3
+
+asset_generation:
+  image_prompt_prefix: "clean flat brand illustration, deep navy background, blue and orange accents, "
+  image_negative_prompt: "photorealistic, 3d render, cluttered, low quality"
+  diagram_style: "clean lines, rounded nodes, subtle shadows"
+  consistency_anchors:
+    - "Brand blue (#0B5FFF) as the primary accent in every scene"
+    - "Deep navy (#0E1116) backgrounds throughout"
+    - "Flat illustration style, no 3D or photorealism"
+
+overlays:
+  stat_card:
+    bg: "#141A22"
+    border: "#0B5FFF"
+    radius: 8
+  key_term:
+    bg: "#0B1E3A"
+    text: "#7FB0FF"
+    radius: 4
+
+quality_rules:
+  - "Palette is locked by brand_lock and must never be recolored by a philosophy overlay"
+  - "Minimum contrast ratio 4.5:1 for all text"
+  - "Text must be readable at 720p"
+
+chart_palette:
+  - "#0B5FFF"
+  - "#FF6B00"
+  - "#12B886"
+  - "#8B5CF6"
+  - "#EF4444"
+  - "#06B6D4"
+
+color_rules:
+  harmony_type: "complementary"
+  contrast_validation: true
+  colorblind_safe: true

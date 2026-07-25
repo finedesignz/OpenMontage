@@ -13,12 +13,12 @@
         "name": { "type": "string" },
         "category": {
           "type": "string",
-          "enum": ["motion-graphics", "whiteboard", "cinematic", "minimalist", "retro", "custom"]
+          "enum": ["motion-graphics", "whiteboard", "cinematic", "minimalist", "retro", "anime-illustration", "custom"]
         },
         "mood": { "type": "string" },
         "pace": {
           "type": "string",
-          "enum": ["slow", "deliberate", "moderate", "fast", "rapid"]
+          "enum": ["slow", "gentle", "deliberate", "moderate", "fast", "rapid"]
         },
         "best_for": { "type": "string" }
       },
@@ -38,7 +38,7 @@
             "text": { "type": "string" },
             "muted": { "type": "string" }
           },
-          "additionalProperties": false
+          "additionalProperties": { "type": "string" }
         },
         "composition": { "type": "string" },
         "texture": { "type": "string" }
@@ -143,7 +143,7 @@
           "minItems": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "overlays": {
       "type": "object",
@@ -152,7 +152,7 @@
         "key_term": { "$ref": "#/$defs/overlay_style" },
         "code_block": { "$ref": "#/$defs/overlay_style" }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "quality_rules": {
       "type": "array",
@@ -212,6 +212,50 @@
           }
         }
       }
+    },
+    "brand_lock": {
+      "description": "Brand-derived LOCKED identity (BRAND-01). Optional and backward-compatible: playbooks without it validate unchanged. When present, the palette and any typography/logo it names are non-overridable by a style-philosophy overlay (see apply_philosophy); the motion vocabulary is deliberately left free/varied.",
+      "type": "object",
+      "required": ["locked", "palette"],
+      "properties": {
+        "locked": {
+          "description": "Must be true. Marks the brand identity as immutable to overlays.",
+          "type": "boolean",
+          "const": true
+        },
+        "palette": {
+          "description": "The locked, brand-derived color identity. Mirrors visual_language.color_palette.",
+          "type": "object",
+          "required": ["primary", "accent", "background", "text"],
+          "properties": {
+            "primary": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "accent": { "type": "array", "items": { "type": "string" } },
+            "background": { "type": "string" },
+            "text": { "type": "string" },
+            "muted": { "type": "string" }
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "typography": {
+          "description": "Optional locked type identity (font family names by role).",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "logo": {
+          "description": "Optional locked logo (path to an asset and/or wordmark text).",
+          "type": "object",
+          "properties": {
+            "path": { "type": "string" },
+            "text": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "source": {
+          "description": "Optional provenance for the locked brand (e.g. the brand URL it was derived from).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "$defs": {
