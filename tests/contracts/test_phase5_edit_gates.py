@@ -68,6 +68,28 @@ class TestTalkingHeadEditGates:
         assert "video_trimmer" in tools
 
 
+class TestPodcastRepurposeEditGates:
+    """Expansion: podcast-repurpose carries the same named gates."""
+
+    def test_loads_and_validates(self):
+        manifest = load_pipeline("podcast-repurpose")
+        assert manifest["name"] == "podcast-repurpose"
+
+    def test_edit_stage_requires_human_approval(self):
+        manifest = load_pipeline("podcast-repurpose")
+        assert _edit_stage(manifest).get("human_approval_default") is True
+
+    def test_named_sub_stages_present_in_order(self):
+        manifest = load_pipeline("podcast-repurpose")
+        names = [s["name"] for s in get_stage_sub_stages(manifest, "edit")]
+        assert names == EXPECTED_SUB_STAGES
+
+    def test_approve_cut_list_is_the_human_gate(self):
+        manifest = load_pipeline("podcast-repurpose")
+        subs = {s["name"]: s for s in get_stage_sub_stages(manifest, "edit")}
+        assert subs["approve_cut_list"]["human_approval_default"] is True
+
+
 class TestAllManifestsStillValidate:
     """The edit-gate change must not break any previously-valid manifest."""
 
