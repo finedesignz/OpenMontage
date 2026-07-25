@@ -23,7 +23,7 @@ platform.
 - [x] **Phase 2: Motion Doctrine** - "11 Laws" meta skill wired into stage directors / playbook for motion-led pipelines (completed 2026-07-25)
 - [ ] **Phase 3: Storyboard Convention** - Per-project `STORYBOARD.md` + `meta.json` with a beat-timeline approval gate
 - [ ] **Phase 4: Brand Lock** - Brand-locked DESIGN contract + style-philosophy override layered on style playbooks
-- [ ] **Phase 5: Raw-Edit Review Gates** - Named trim-filler → cut-list → animate gates enforced via checkpoint-protocol
+- [x] **Phase 5: Raw-Edit Review Gates** - Named trim-filler → cut-list → animate gates enforced via checkpoint-protocol (completed 2026-07-25)
 
 ## Phase Details
 
@@ -108,4 +108,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Motion Doctrine | 1/1 | Complete   | 2026-07-25 |
 | 3. Storyboard Convention | 0/TBD | Not started | - |
 | 4. Brand Lock | 0/TBD | Not started | - |
-| 5. Raw-Edit Review Gates | 0/TBD | Not started | - |
+| 5. Raw-Edit Review Gates | 1/1 | Complete   | 2026-07-25 |

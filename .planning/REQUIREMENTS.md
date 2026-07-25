@@ -55,11 +55,11 @@ Source analysis: `scratchpad/hyperframes-review.md`.
 
 ### Raw-Edit Review Gates (EDITGATE)
 
-- [ ] **EDITGATE-01**: Define a raw-edit review flow (trim-filler → approve-cut-list →
+- [x] **EDITGATE-01**: Define a raw-edit review flow (trim-filler → approve-cut-list →
   animate) with named review gates, expressed in a pipeline manifest's stage/approval
   structure.
 
-- [ ] **EDITGATE-02**: Enforce those gates through `skills/meta/checkpoint-protocol.md`
+- [x] **EDITGATE-02**: Enforce those gates through `skills/meta/checkpoint-protocol.md`
   (human_approval at the cut-list gate) rather than ad-hoc prompts.
 
 ## Future Requirements (deferred)
@@ -95,7 +95,7 @@ Phase dirs/labels are milestone-scoped: `HF-NN-slug` (e.g. `HF-01-local-tts`).
 | STORY-03 | Phase 3 (HF-03) | Pending |
 | BRAND-01 | Phase 4 (HF-04) | Pending |
 | BRAND-02 | Phase 4 (HF-04) | Pending |
-| EDITGATE-01 | Phase 5 (HF-05) | Pending |
-| EDITGATE-02 | Phase 5 (HF-05) | Pending |
+| EDITGATE-01 | Phase 5 (HF-05) | Complete |
+| EDITGATE-02 | Phase 5 (HF-05) | Complete |
 
 Coverage: 12/12 requirements mapped, no orphans.
