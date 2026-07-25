@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: HF-PORT
-status: planning
-last_updated: "2026-07-25T01:37:15.582Z"
-last_activity: 2026-07-22 — Phase 1 complete, transitioned to Phase 2
+status: Awaiting next milestone
+last_updated: "2026-07-25T01:42:53.167Z"
+last_activity: 2026-07-24
+last_activity_desc: Milestone v1.0 completed and archived
 progress:
   total_phases: 5
-  completed_phases: 5
-  total_plans: 7
+  completed_phases: 4
+  total_plans: 8
   completed_plans: 7
-  percent: 100
+  percent: 80
 ---
 
 # Project State
@@ -24,12 +25,10 @@ adds a free local-TTS provider.
 
 ## Current Position
 
-Phase: 2 — Motion Doctrine
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-22 — Phase 1 complete, transitioned to Phase 2
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-24 — Milestone v1.0 completed and archived
 
 ## Phase Map (milestone-scoped: HF-NN)
 
@@ -63,3 +62,7 @@ Next: `/gsd-plan-phase 1` (HF-01 Local TTS).
 | Phase HF-01 P01-02 | 20min | 2 tasks | 3 files |
 | Phase HF-02 P02-01 | 12min | 2 tasks | 6 files |
 | Phase HF-05 P05-01 | unknown | 2 tasks | 5 files |
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
