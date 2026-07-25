@@ -122,6 +122,20 @@ Check the playbook's `motion.pacing_rules`:
 
 Adjust cut timing if any violates these rules.
 
+### Step 5b: Consult the Motion Doctrine
+
+For motion-led edits, consult `skills/meta/motion-doctrine.md` while setting cut timing
+and transitions - read its core (the 11 Laws, the pre-flight checklist), do not copy it
+here. Run the doctrine's pre-flight checklist against the assembled timeline before
+submitting. The laws that bite hardest at the edit stage:
+
+- **One idea per beat, cut fast** (Law 1) - keep the default scene length short; if a
+  cut lingers, it had better be a hero moment or the outro.
+- **Every cut rides a motion element** (Law 5) - bridge each cut with a transition
+  (streak, morph, slide, recolor); no bare hard fades.
+- **Hold the hero shot, breathe the outro** (Law 9) - give the reveal and the closing
+  card real stillness; the longest single shot is usually the outro.
+
 ### Step 6: Verify Edit Completeness
 
 **Timeline coverage:**

@@ -1,8 +1,34 @@
 """Capability-level text-to-speech selector that chooses among provider tools.
 
-Provider discovery is automatic — any BaseTool with capability="tts"
+Provider discovery is automatic -- any BaseTool with capability="tts"
 is picked up from the registry.  Adding a new TTS provider requires only creating
 the tool file in tools/audio/; no changes to this selector are needed.
+
+Fallback precedence (D-06)
+--------------------------
+On the auto path the selector prefers, in order:
+
+    ElevenLabs  ->  Kokoro  ->  Piper
+
+- ElevenLabs (paid) when its key is set and a specific voice/clone is requested;
+  it outranks the free providers on output quality for quality intents.
+- Kokoro (free, offline, multilingual, higher measured quality) via its
+  quality_score=0.7 lever, which deterministically outranks Piper on the free path
+  (no scoring-engine edit).
+- Piper (free, offline) as the last resort.
+
+This ordering emerges from the weighted score, not a hardcoded list; a new
+provider slots in by its own score.
+
+No silent downgrade (D-05)
+--------------------------
+When preferred_provider names a KNOWN provider that is currently UNAVAILABLE
+(e.g. "elevenlabs" with no key -- a requested paid voice), the selector does NOT
+quietly substitute a free provider. execute() returns success=False with a
+message naming the provider and stating it is not downgrading, so a run that
+asked for a specific voice is never silently swapped. Only an UNKNOWN preferred
+name falls through to the free auto ranking. voice_id is a generic pass-through
+(kokoro/piper rely on it) and is not treated as an implicit ElevenLabs request.
 """
 
 from __future__ import annotations
@@ -138,6 +164,21 @@ class TTSSelector(BaseTool):
         # Normal generation — use scored selection
         tool, score = self._select_best_tool(inputs, candidates, task_context)
         if tool is None:
+            # Distinguish an explicit-but-unavailable request (D-05 no-silent-
+            # downgrade contract) from "no providers at all". A KNOWN provider
+            # that was explicitly requested but is unavailable must surface the
+            # substitution instead of quietly returning a free voice.
+            preferred = inputs.get("preferred_provider", "auto")
+            known = {t.provider for t in candidates}
+            if preferred != "auto" and preferred in known:
+                return ToolResult(
+                    success=False,
+                    error=(
+                        f"Requested TTS provider '{preferred}' is unavailable -- not "
+                        "downgrading to a free voice. Set its key or choose "
+                        "preferred_provider='auto'."
+                    ),
+                )
             return ToolResult(success=False, error="No TTS provider available.")
 
         result = tool.execute(inputs)
@@ -179,8 +220,19 @@ class TTSSelector(BaseTool):
             for score_item in rankings:
                 if score_item.provider == preferred and score_item.provider in tool_by_provider:
                     return tool_by_provider[score_item.provider], score_item
+            # Explicit provider requested but unavailable: do NOT fall through to a
+            # free provider -- surface it (D-05 no-silent-downgrade contract).
+            # A1 finding: no code caller signals a requested paid voice via a
+            # voice_id-only request (no accent-safe-voice call path exists in
+            # pipelines/lib/tools), so the explicit signal is preferred_provider
+            # alone. Kokoro/Piper rely on generic voice_id pass-through (01-01 A3),
+            # so voice_id is NOT treated as an implicit ElevenLabs request.
+            known = {tool.provider for tool in candidates}
+            if preferred in known:
+                return None, None  # execute() surfaces "requested provider unavailable"
+            # else: unknown provider name -> fall through to auto ranking below
 
-        for score_item in rankings:
+        for score_item in rankings:  # auto path only
             if score_item.provider in tool_by_provider:
                 return tool_by_provider[score_item.provider], score_item
 

@@ -170,6 +170,22 @@ If the video includes narration, the script **must** be written to fit the video
 
 > **Overlays callout.** Overlays (titles, subtitles, HUD, watermarks, framing graphics, lower-thirds, section_title bars, stat_reveal chips, hero_title overlays, provider chips) are NOT part of the scene's foreground/midground/background depth axis. List them separately in scene metadata (`overlays: [...]`) with content and placement. Never describe an overlay as "in the foreground" — that confuses both downstream tools and any video-understanding model that re-analyzes the output.
 
+### Step 4d: Consult the Motion Doctrine
+
+For any motion-led scene (animation, kinetic type, progressive reveal, camera moves),
+consult `skills/meta/motion-doctrine.md` while planning. This is the shared motion
+quality bar - read its core (the 11 Laws, the cut-this-in-half test, the pre-flight
+checklist), do not copy it here. The laws that bite hardest at the scene-planning stage:
+
+- **One idea per beat, cut fast** (Law 1) - decompose so each scene lands a single
+  concept; if a scene says two things, split it.
+- **Type is a character** (Law 8) - make text scale, morph, or act during its reveal,
+  not just fade in.
+- **Hold the hero shot** (Law 9) - give reveals and the closing card real stillness;
+  speed earns space.
+- **The camera never sleeps** (Law 4) - add drift, parallax, or a slow zoom to any beat
+  that would otherwise sit frozen.
+
 ### Step 5: Validate Against Playbook
 
 The style playbook constrains your visual choices:

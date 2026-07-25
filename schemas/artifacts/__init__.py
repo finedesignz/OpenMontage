@@ -19,6 +19,8 @@ ARTIFACT_NAMES = [
     "rig_plan",
     "pose_library",
     "scene_plan",
+    "storyboard",
+    "project_meta",
     "action_timeline",
     "asset_manifest",
     "edit_decisions",

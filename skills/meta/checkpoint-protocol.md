@@ -178,6 +178,71 @@ preview clip stored at `projects/<name>/assets/sample/sample_v{N}.mp4`.
 Does this feel right? I can adjust: voice, visual style, pacing, music, colors.
 ```
 
+### Beat-Timeline / Storyboard Gate (Pre-Asset, Mandatory)
+
+The `scene_plan` stage produces a `storyboard` artifact (a reviewable beat timeline
+with per-beat duration, timestamped SFX cues, and music-duck points) rendered to
+`projects/<name>/STORYBOARD.md`. This is a MANDATORY human-approval gate that must
+pass BEFORE the `assets` stage spends on generation or render.
+
+| Stage | checkpoint_required | human_approval_default | Notes |
+|-------|--------------------|-----------------------|-------|
+| `scene_plan` | true | true | Human approves the storyboard beat timeline before any asset spend |
+
+At this gate:
+1. Present `STORYBOARD.md` (the human-readable rendering of the `storyboard` artifact)
+   alongside the projected asset/render cost.
+2. Action: approve (-> proceed to `assets`), revise (-> edit the storyboard artifact and
+   re-render), or abort.
+3. Do NOT enter the `assets` stage until this gate returns approved. The gate exists so
+   the human signs off on the beat timeline before any generation or render spend.
+
+This gate is wired in both `pipeline_defs/screen-demo.yaml` and
+`pipeline_defs/animated-explainer.yaml`: the `scene_plan` stage carries
+`checkpoint_required: true` + `human_approval_default: true` and `produces: storyboard`.
+
+### Raw-Edit Cut-List Gate (Pre-Compose, Mandatory)
+
+For pipelines that edit raw footage, the `edit` stage is a named, human-gated sequence
+expressed as `sub_stages` on the stage. The sequence is:
+
+`trim_filler` -> `approve_cut_list` -> `animate`
+
+1. **trim_filler** -- auto jump-cuts and filler removal on the raw footage (silence, ums,
+   dead air), using the stage tools (`silence_cutter`, `video_trimmer`). Produces the draft
+   cut list (`edit_decisions`).
+2. **approve_cut_list** -- the MANDATORY human-approval gate. The human signs off that the
+   cut list (`edit_decisions`) is correct and complete BEFORE any compose/animate render
+   spend. This sub-stage carries `human_approval_default: true`.
+3. **animate** -- proceed to compose/animate only after `approve_cut_list` returned approved.
+
+At the `approve_cut_list` gate:
+1. Present the cut list (`edit_decisions`) alongside the projected compose/render cost.
+2. Action: approve (-> proceed to `animate`/compose), revise (-> re-run `trim_filler` with
+   feedback and re-review), or abort.
+3. Do NOT enter compose/animate until this gate returns approved. The gate exists so the
+   human signs off on the cut list before any render spend.
+
+**How the protocol reads a sub-stage's `human_approval_default`:** read the current
+`edit` stage's `sub_stages` from the manifest and, for the active sub-stage, apply the
+same rule as the stage-level table above -- when `human_approval_default: true`, stop and
+present to the human for approval (Step 5) before advancing to the next sub-stage. A
+sub-stage's `human_approval_default` defaults to `true` when omitted (per the manifest
+schema), so an unset value on a gate sub-stage still requires approval. Note that the
+`edit` stage itself also carries `human_approval_default: true` on these pipelines, so the
+whole cut-list step is human-gated at both the stage and the `approve_cut_list` sub-stage.
+
+| Sub-stage | human_approval_default | Action |
+|-----------|------------------------|--------|
+| `trim_filler` | false (auto) | Run auto jump-cuts / filler removal, produce draft cut list |
+| `approve_cut_list` | true | Present cut list + cost, wait for human approval before render spend |
+| `animate` | false (auto) | Proceed to compose/animate, entered only after approval |
+
+This gate is wired on the raw-footage pipelines `pipeline_defs/talking-head.yaml` and
+`pipeline_defs/podcast-repurpose.yaml`: the `edit` stage carries the three named
+`sub_stages` with `approve_cut_list.human_approval_default: true`, and the stage-level
+`human_approval_default` is `true`.
+
 ## Key Principles
 
 1. **Always checkpoint completed work.** Even if `checkpoint_required: false`, consider checkpointing anyway if the stage took significant time or cost. Losing work is worse than an extra file on disk.

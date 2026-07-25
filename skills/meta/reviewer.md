@@ -260,6 +260,25 @@ Run at **edit** and **compose** stages. Uses `lib/delivery_promise.py`.
 2. Review should verify the validation was not bypassed (check render report for warnings)
 3. If render succeeded despite low motion ratio on a motion-led promise, flag as **SUGGESTION**
 
+## Motion Doctrine Pre-flight Review
+
+Run at **scene_plan** and **edit** stages for motion-led pipelines (animated explainer,
+motion graphics, animation, screen-demo overlay passes). Advisory only - it applies the
+same max-2-round contract as the rest of this skill; never block indefinitely.
+
+Apply the pre-flight checklist from `skills/meta/motion-doctrine.md` (the single source
+of truth - do not restate it here) against the stage artifact:
+
+1. Walk the doctrine's pre-flight checklist against the scene plan or edit decisions.
+2. Each unmet item is a **suggestion** finding (carry a `proposed_change`), not a
+   critical, unless it also violates an explicit playbook constraint or breaks the
+   render (for example a composition whose timeline does not fill its declared duration,
+   which black-frame-flashes - that is **critical** per Law 11).
+3. Note the checklist result in the review summary even when everything passes.
+
+This is deliberately lighter-weight than schema or playbook checks: the doctrine is a
+quality bar, and after two revision rounds you pass with warnings and move on.
+
 ## Source Understanding Review
 
 Run at **research** and **proposal** stages when user-supplied media files exist.

@@ -280,6 +280,7 @@ Cross-cutting skills that apply to all pipelines:
 | Reviewer | `meta/reviewer.md` | Self-review protocol after every stage |
 | Checkpoint Protocol | `meta/checkpoint-protocol.md` | When/how to checkpoint and request human approval |
 | Skill Creator | `meta/skill-creator.md` | Dynamically create new skills during pipeline runs |
+| Motion Doctrine | `meta/motion-doctrine.md` | Motion quality bar for motion-led pipelines: 11 Laws, cut-this-in-half test, pre-flight checklist, easing/pacing/transition reference |
 
 ## Style Playbooks
 
