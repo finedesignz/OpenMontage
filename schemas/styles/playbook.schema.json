@@ -13,12 +13,12 @@
         "name": { "type": "string" },
         "category": {
           "type": "string",
-          "enum": ["motion-graphics", "whiteboard", "cinematic", "minimalist", "retro", "anime-illustration", "custom"]
+          "enum": ["motion-graphics", "whiteboard", "cinematic", "minimalist", "retro", "custom"]
         },
         "mood": { "type": "string" },
         "pace": {
           "type": "string",
-          "enum": ["slow", "gentle", "deliberate", "moderate", "fast", "rapid"]
+          "enum": ["slow", "deliberate", "moderate", "fast", "rapid"]
         },
         "best_for": { "type": "string" }
       },
@@ -38,7 +38,7 @@
             "text": { "type": "string" },
             "muted": { "type": "string" }
           },
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": false
         },
         "composition": { "type": "string" },
         "texture": { "type": "string" }
@@ -143,7 +143,7 @@
           "minItems": 1
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "overlays": {
       "type": "object",
@@ -152,7 +152,7 @@
         "key_term": { "$ref": "#/$defs/overlay_style" },
         "code_block": { "$ref": "#/$defs/overlay_style" }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "quality_rules": {
       "type": "array",

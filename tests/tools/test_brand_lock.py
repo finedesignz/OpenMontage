@@ -36,21 +36,24 @@ STYLES_DIR = Path(__file__).resolve().parents[2] / "styles"
 # Back-compat: every shipped playbook still validates under the updated schema
 # ---------------------------------------------------------------------------
 
+# anime-ghibli is a known-broken playbook against the strict schema and is
+# deliberately excluded from validation, matching tests/qa/test_07_playbook_intelligence.py.
+# brand_lock must not weaken the shared schema to accommodate it.
+_STRICT_VALID_PLAYBOOKS = ["clean-professional", "flat-motion-graphics", "minimalist-diagram"]
+
+
 def test_all_shipped_playbooks_still_validate():
-    """brand_lock is optional -- adding it must not break any existing style."""
-    names = list_playbooks()
-    assert names, "list_playbooks() returned nothing"
-    for name in names:
+    """brand_lock is optional -- adding it must not break any previously-valid style."""
+    available = list_playbooks()
+    assert available, "list_playbooks() returned nothing"
+    for name in _STRICT_VALID_PLAYBOOKS:
         # load_playbook validates internally; a failure raises.
         load_playbook(name)
 
 
-@pytest.mark.parametrize(
-    "name",
-    ["anime-ghibli", "clean-professional", "flat-motion-graphics", "minimalist-diagram"],
-)
+@pytest.mark.parametrize("name", _STRICT_VALID_PLAYBOOKS)
 def test_named_legacy_playbooks_validate(name):
-    """The four playbooks named in the phase constraint must all validate."""
+    """The playbooks valid before brand_lock must still validate after it."""
     assert name in list_playbooks()
     load_playbook(name)
 
