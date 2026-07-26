@@ -25,7 +25,7 @@ TERMINAL_STATUSES = {JobStatus.completed.value, JobStatus.failed.value, JobStatu
 
 
 class CreateJobRequest(BaseModel):
-    prompt: str = Field(..., min_length=1, description="Plain-language production brief.")
+    prompt: str = Field(..., min_length=1, max_length=20000, description="Plain-language production brief.")
     pipeline: str | None = Field(
         None,
         description="Optional pipeline hint (e.g. 'animated-explainer'). If omitted the agent selects one.",

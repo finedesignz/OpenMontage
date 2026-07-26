@@ -105,7 +105,7 @@ curl -sO https://openmontage.example.com/v1/jobs/ab12.../artifacts/final.mp4 -H 
 | `OPENMONTAGE_JOB_TIMEOUT` | `3600` | Per-job wall-clock ceiling (seconds). |
 | `OPENMONTAGE_BUDGET_USD` | `10` | Per-job provider spend cap handed to the agent. |
 | `OPENMONTAGE_AGENT_MODEL` | _(CLI default)_ | Override the agent model. |
-| `OPENMONTAGE_AGENT_MAX_TURNS` | `120` | Agent turn ceiling. |
+| `OPENMONTAGE_AGENT_MAX_TURNS` | `400` | Agent turn ceiling. |
 | `OPENMONTAGE_CLAUDE_BIN` | `claude` | Path to the Claude Code CLI. |
 | provider keys | _(optional)_ | `FAL_KEY`, `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, … — read by the tools, same as CLI mode. |
 

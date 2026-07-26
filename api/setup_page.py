@@ -63,7 +63,7 @@ LOGIN_HTML = """<!doctype html>
 <body>
 <main>
   <h1>Sign in to OpenMontage</h1>
-  <p class="sub">Enter your operator email. We'll send a one-time magic link — no password.</p>
+  <p class="sub">Enter your operator email. We'll send a one-time magic link - no password.</p>
   <div class="card">
     <div class="field">
       <label for="email">Email</label>
@@ -91,7 +91,7 @@ $("go").addEventListener("click", async () => {
       body: JSON.stringify({ email }),
     });
     if (r.ok) {
-      say("Check your inbox — if that address is authorised, a sign-in link is on its way.", true);
+      say("Check your inbox - if that address is authorised, a sign-in link is on its way.", true);
     } else {
       const d = await r.json().catch(() => ({}));
       say(d.detail || ("Failed with HTTP " + r.status), false);
@@ -106,6 +106,30 @@ $("go").addEventListener("click", async () => {
 </body>
 </html>
 """.replace("%STYLE%", _STYLE)
+
+
+# --- Setup-unavailable view (Titanium not wired) ----------------------------
+
+SETUP_UNAVAILABLE_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenMontage · Setup unavailable</title>
+<style>%STYLE%</style>
+</head>
+<body>
+<main>
+  <h1>Setup is not available yet</h1>
+  <p class="sub">Operator sign-in runs through Titanium Licensing, which is not wired on this deployment.</p>
+  <div class="card">
+    <p class="hint">Set <code>TITANIUM_APP_ID</code> and <code>TITANIUM_RETURN_URL</code> in the
+    deployment environment, then redeploy. Once the portal is wired, this page becomes the
+    magic-link sign-in for authorizing the agent.</p>
+  </div>
+</main>
+</body>
+</html>""".replace("%STYLE%", _STYLE)
 
 
 # --- Token / authorize-agent view -------------------------------------------
@@ -126,13 +150,13 @@ _SETUP_TEMPLATE = """<!doctype html>
   </div>
   <p class="sub">Every render is driven by a headless Claude Code agent inside this container. It needs your Claude subscription to run.</p>
 
-  <div class="state"><span class="dot" id="dot"></span><span id="state">Checking current status…</span></div>
+  <div class="state"><span class="dot" id="dot"></span><span id="state">Checking current status...</span></div>
 
   <div class="card">
     <div class="field">
       <label for="token">Claude subscription token</label>
       <p class="hint">On any machine where you are logged in to Claude Code, run <code>claude setup-token</code> and paste the result here.</p>
-      <textarea id="token" rows="4" autocomplete="off" placeholder="sk-ant-oat01-…"></textarea>
+      <textarea id="token" rows="4" autocomplete="off" placeholder="sk-ant-oat01-..."></textarea>
     </div>
     <button id="go">Authorize agent</button>
     <div class="status" id="status"></div>
@@ -148,7 +172,7 @@ function paintState(data) {
   const live = data.configured;
   $("dot").className = "dot" + (live ? " live" : "");
   if (!live) {
-    $("state").textContent = "Not authorized — the agent cannot run jobs yet.";
+    $("state").textContent = "Not authorized - the agent cannot run jobs yet.";
   } else {
     const when = data.updated_at ? new Date(data.updated_at).toLocaleString() : "unknown time";
     $("state").textContent = "Authorized on your Claude subscription since " + when + ".";
@@ -174,7 +198,7 @@ $("go").addEventListener("click", async () => {
       say("Token verified against Anthropic. The agent runs on your subscription and stays authorized across redeploys.", true);
       paintState(data);
     } else if (r.status === 401) {
-      say("Your session has expired — reload and sign in again.", false);
+      say("Your session has expired - reload and sign in again.", false);
     } else {
       say(data.detail || ("Failed with HTTP " + r.status), false);
     }

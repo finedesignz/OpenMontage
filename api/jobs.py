@@ -124,6 +124,16 @@ class JobManager:
         self._store.put(rec)
 
     async def _run(self, job_id: str) -> None:
+        try:
+            await self._run_body(job_id)
+        finally:
+            # Drop the finished task ref so completed jobs don't leak asyncio.Task
+            # objects for the life of the container. Safe here: only active_count
+            # and cancel() read _tasks, and cancel() reads it before the task ends;
+            # by this point all status writes are done and the task is terminal.
+            self._tasks.pop(job_id, None)
+
+    async def _run_body(self, job_id: str) -> None:
         async with self._sem:
             rec = self._store.get(job_id)
             if not rec or rec.status == JobStatus.cancelled:
