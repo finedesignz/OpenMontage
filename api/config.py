@@ -74,6 +74,13 @@ class Settings:
     jobs_dir: Path = field(default_factory=lambda: REPO_ROOT / "jobs")
     projects_dir: Path = field(default_factory=lambda: REPO_ROOT / "projects")
 
+    # --- Typed source inputs (server-side fetch of caller-supplied media) ---
+    # Per-file cap on a fetched input. Screen recordings are the primary use
+    # case; 2GB comfortably covers a long capture without letting one input
+    # exhaust disk on a shared container.
+    input_max_bytes: int = _int("OPENMONTAGE_INPUT_MAX_BYTES", 2 * 1024 * 1024 * 1024)
+    input_fetch_timeout_seconds: int = _int("OPENMONTAGE_INPUT_FETCH_TIMEOUT", 300)
+
     # Explicit dev opt-out. Without keys AND without this flag, a non-loopback
     # bind refuses to boot rather than serving every route unauthenticated.
     allow_no_auth: bool = field(

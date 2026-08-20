@@ -25,6 +25,18 @@ production_modes:
     description: "OS screen recording of a real desktop/browser session"
     required_tools: [screen_recorder]
     optional_tools: [cap_recorder]
+    # Footage can arrive two ways:
+    #   1. Local/CLI operator: files already sit under projects/<slug>/ (or the
+    #      operator drives screen_recorder/cap_recorder themselves).
+    #   2. Server job with typed source inputs (POST /v1/jobs `inputs`): the API
+    #      fetches caller-supplied media into projects/<slug>/inputs/ before the
+    #      agent runs and writes projects/<slug>/inputs/manifest.json (role ->
+    #      file path). Check that manifest FIRST — if present, footage is
+    #      already provided; do not assume a fresh recording is still needed.
+    source_footage_resolution:
+      - "projects/<slug>/inputs/manifest.json (server-fetched typed inputs, if present)"
+      - "projects/<slug>/ (locally supplied footage)"
+      - "record fresh via screen_recorder/cap_recorder (only if neither above has footage)"
     best_for:
       - Real app UIs (Figma, Photoshop, web apps with live state)
       - Demos that depend on unpredictable live behavior
