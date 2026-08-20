@@ -135,7 +135,11 @@ async def test_fetch_inputs_path_containment_rejected(tmp_path, monkeypatch):
 
     import api.inputs as inputs_module
 
-    escaping_path = (settings.projects_dir / ".." / "outside" / "evil.mp4").resolve()
+    # A sibling job's inputs dir: still inside settings.projects_dir, so a
+    # projects_dir-parent containment check (the old, buggy comparison)
+    # would let this through. Only a check resolved against THIS job's own
+    # inputs_dir catches it.
+    escaping_path = settings.projects_dir / "other-slug" / "evil.mp4"
     monkeypatch.setattr(inputs_module, "_dest_path", lambda *a, **kw: escaping_path)
 
     valid = SourceInput(role="screen_recording", url="https://example.com/x.mp4")
@@ -162,3 +166,63 @@ async def test_fetch_inputs_empty_list_is_noop(tmp_path):
     settings = _settings(tmp_path)
     fetched = await fetch_inputs(settings, "demo-slug", [])
     assert fetched == []
+
+
+class _FailingMidStream(httpx.AsyncByteStream):
+    """Yields one chunk, then blows up — simulates a connection drop partway
+    through the body, after the .part file has already been opened and
+    written to."""
+
+    async def __aiter__(self):
+        yield b"partial-bytes"
+        raise httpx.ReadError("connection reset mid-stream")
+
+    async def aclose(self) -> None:  # pragma: no cover - httpx housekeeping
+        pass
+
+
+@pytest.mark.asyncio
+async def test_fetch_inputs_mid_stream_transport_error_leaves_no_part_file(tmp_path, monkeypatch):
+    # A timeout/transport error mid-stream must not leak the <role><suffix>.part
+    # temp file — cleanup must cover every failure path, not just the
+    # size-cap breach.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_FailingMidStream())
+
+    _patch_transport(monkeypatch, handler)
+    settings = _settings(tmp_path)
+    inputs = [SourceInput(role="screen_recording", url="https://example.com/rec.mp4")]
+
+    with pytest.raises(InputFetchError, match="fetch error"):
+        await fetch_inputs(settings, "demo-slug", inputs)
+
+    inputs_dir = settings.projects_dir / "demo-slug" / "inputs"
+    leftover = list(inputs_dir.glob("*")) if inputs_dir.exists() else []
+    assert not any(f.name.endswith(".part") for f in leftover)
+    assert not any(f.suffix == ".mp4" for f in leftover)
+
+
+@pytest.mark.asyncio
+async def test_fetch_inputs_part_symlink_rejected(tmp_path, monkeypatch):
+    # The .part temp path must be symlink-checked the same as dest — an
+    # attacker who already has write access inside the job's own inputs dir
+    # must not be able to write through a pre-existing symlink at the temp
+    # path.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"x")
+
+    _patch_transport(monkeypatch, handler)
+    settings = _settings(tmp_path)
+    inputs_dir = settings.projects_dir / "demo-slug" / "inputs"
+    inputs_dir.mkdir(parents=True)
+
+    target = tmp_path / "elsewhere.mp4"
+    target.write_bytes(b"pwned")
+    (inputs_dir / "screen_recording.mp4.part").symlink_to(target)
+
+    inputs = [SourceInput(role="screen_recording", url="https://example.com/rec.mp4")]
+
+    with pytest.raises(InputFetchError, match="symlink"):
+        await fetch_inputs(settings, "demo-slug", inputs)
+
+    assert target.read_bytes() == b"pwned"

@@ -99,6 +99,11 @@ async def fetch_inputs(
             if dest.exists() and dest.is_symlink():
                 raise InputFetchError(f"input '{item.role}': refusing to write through a symlink")
 
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            if tmp.exists() and tmp.is_symlink():
+                raise InputFetchError(f"input '{item.role}': refusing to write through a symlink")
+
+            written = 0
             try:
                 async with client.stream("GET", item.url) as resp:
                     if resp.status_code >= 400:
@@ -117,19 +122,19 @@ async def fetch_inputs(
                             f"input '{item.role}': declared size exceeds "
                             f"{settings.input_max_bytes} byte cap"
                         )
-                    written = 0
-                    tmp = dest.with_suffix(dest.suffix + ".part")
-                    with open(tmp, "wb") as f:
-                        async for chunk in resp.aiter_bytes():
-                            written += len(chunk)
-                            if written > settings.input_max_bytes:
-                                f.close()
-                                tmp.unlink(missing_ok=True)
-                                raise InputFetchError(
-                                    f"input '{item.role}': exceeded "
-                                    f"{settings.input_max_bytes} byte cap while streaming"
-                                )
-                            f.write(chunk)
+                    try:
+                        with open(tmp, "wb") as f:
+                            async for chunk in resp.aiter_bytes():
+                                written += len(chunk)
+                                if written > settings.input_max_bytes:
+                                    raise InputFetchError(
+                                        f"input '{item.role}': exceeded "
+                                        f"{settings.input_max_bytes} byte cap while streaming"
+                                    )
+                                f.write(chunk)
+                    except BaseException:
+                        tmp.unlink(missing_ok=True)
+                        raise
                     tmp.replace(dest)
             except httpx.TimeoutException as exc:
                 raise InputFetchError(f"input '{item.role}': fetch timed out") from exc
