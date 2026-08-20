@@ -27,12 +27,24 @@ from .config import Settings
 ProgressCb = Callable[[str, str], None]  # (stage, note) -> None
 
 
-def build_prompt(prompt: str, project_slug: str, pipeline: str | None, budget_usd: float) -> str:
+def build_prompt(
+    prompt: str, project_slug: str, pipeline: str | None, budget_usd: float, has_inputs: bool = False
+) -> str:
     """Compose the autonomous production brief handed to the headless agent."""
     pipeline_line = (
         f"- Use the `{pipeline}` pipeline.\n"
         if pipeline
         else "- Select the most appropriate pipeline yourself.\n"
+    )
+    inputs_line = (
+        f"- Caller-supplied source media has already been fetched. Read "
+        f"projects/{project_slug}/inputs/manifest.json FIRST: its `inputs` array is "
+        "the role -> file path mapping (e.g. role 'screen_recording' for "
+        f"real_capture mode; files live under projects/{project_slug}/inputs/). "
+        "Treat the manifest as authoritative — do not assume footage must still "
+        "be recorded when the manifest already supplies it.\n"
+        if has_inputs
+        else ""
     )
     return (
         "You are running HEADLESS in an automated service. There is NO human to "
@@ -55,6 +67,7 @@ def build_prompt(prompt: str, project_slug: str, pipeline: str | None, budget_us
         "- If a blocker is truly unrecoverable, stop and explain it clearly in your "
         "final message; do not loop.\n\n"
         f"{pipeline_line}"
+        f"{inputs_line}"
         "\nPRODUCTION BRIEF:\n"
         f"{prompt}\n"
     )
@@ -71,9 +84,14 @@ class AgentRun:
         self._result_error: str = ""
 
     async def execute(
-        self, prompt: str, project_slug: str, pipeline: str | None, budget_usd: float
+        self,
+        prompt: str,
+        project_slug: str,
+        pipeline: str | None,
+        budget_usd: float,
+        has_inputs: bool = False,
     ) -> int:
-        agent_prompt = build_prompt(prompt, project_slug, pipeline, budget_usd)
+        agent_prompt = build_prompt(prompt, project_slug, pipeline, budget_usd, has_inputs)
 
         argv = [
             self._s.claude_bin,

@@ -11,12 +11,18 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 
 from .config import Settings
-from .models import Artifact, JobRecord, JobResult, JobStatus
+from .inputs import InputFetchError, FetchedInput, fetch_inputs
+from .models import Artifact, JobRecord, JobResult, JobStatus, SourceInput
 from .runner import AgentRun
 from .store import JobStore
+
+# Injectable so tests can stub the network fetch without touching JobManager
+# internals — same DI pattern the worker stage runners use.
+FetchInputsFn = Callable[[Settings, str, list[SourceInput]], Awaitable[list[FetchedInput]]]
 
 
 def _now() -> str:
@@ -29,12 +35,13 @@ def _slugify(text: str) -> str:
 
 
 class JobManager:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, fetch_inputs_fn: FetchInputsFn = fetch_inputs):
         self._s = settings
         self._store = JobStore(settings.jobs_dir)
         self._sem = asyncio.Semaphore(settings.max_concurrency)
         self._tasks: dict[str, asyncio.Task] = {}
         self._runs: dict[str, AgentRun] = {}
+        self._fetch_inputs = fetch_inputs_fn
         self._reconcile_orphans()
 
     def _reconcile_orphans(self) -> None:
@@ -48,7 +55,14 @@ class JobManager:
 
     # ---- public API --------------------------------------------------------
 
-    def create(self, prompt: str, pipeline: str | None, budget_usd: float | None, metadata: dict) -> JobRecord:
+    def create(
+        self,
+        prompt: str,
+        pipeline: str | None,
+        budget_usd: float | None,
+        metadata: dict,
+        inputs: list[SourceInput] | None = None,
+    ) -> JobRecord:
         job_id = uuid.uuid4().hex
         slug = f"{_slugify(prompt)}-{job_id[:8]}"
         rec = JobRecord(
@@ -61,6 +75,7 @@ class JobManager:
             updated_at=_now(),
             budget_usd=budget_usd or self._s.budget_usd,
             metadata=metadata,
+            inputs=inputs,
         )
         self._store.put(rec)
         self._tasks[job_id] = asyncio.create_task(self._run(job_id))
@@ -140,6 +155,25 @@ class JobManager:
                 return
             self._update(job_id, status=JobStatus.running, started_at=_now())
 
+            if rec.inputs:
+                self._update(
+                    job_id,
+                    stage="fetching_inputs",
+                    progress_note=f"fetching {len(rec.inputs)} input(s)",
+                )
+                try:
+                    await self._fetch_inputs(self._s, rec.project_slug, rec.inputs)
+                except InputFetchError as exc:
+                    # A requested input that never arrived must fail the job
+                    # loudly, not silently fall back to a prompt-only run.
+                    self._update(
+                        job_id,
+                        status=JobStatus.failed,
+                        error=f"input fetch failed: {exc}",
+                        finished_at=_now(),
+                    )
+                    return
+
             def on_progress(stage: str, note: str) -> None:
                 self._update(job_id, stage=stage, progress_note=note)
 
@@ -147,7 +181,7 @@ class JobManager:
             self._runs[job_id] = run
             try:
                 exit_code = await run.execute(
-                    rec.prompt, rec.project_slug, rec.pipeline, rec.budget_usd
+                    rec.prompt, rec.project_slug, rec.pipeline, rec.budget_usd, bool(rec.inputs)
                 )
             except asyncio.CancelledError:
                 self._update(job_id, status=JobStatus.cancelled, finished_at=_now())

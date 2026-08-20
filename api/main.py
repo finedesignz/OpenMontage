@@ -263,7 +263,7 @@ def create_app() -> FastAPI:
     @app.post("/v1/jobs", response_model=JobRecord, status_code=202, tags=["jobs"], dependencies=[Depends(require_api_key)])
     async def create_job(req: CreateJobRequest) -> JobRecord:
         jm: JobManager = app.state.jobs
-        return jm.create(req.prompt, req.pipeline, req.budget_usd, req.metadata)
+        return jm.create(req.prompt, req.pipeline, req.budget_usd, req.metadata, req.inputs)
 
     @app.get("/v1/jobs", response_model=JobList, tags=["jobs"], dependencies=[Depends(require_api_key)])
     async def list_jobs(
